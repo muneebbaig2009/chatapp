@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
+import { uploadToCloudinary } from "../api/cloudinary";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setMessages } from "../store/slices/chatSlice";
 import { useSocketRef } from "../hooks/SocketContext";
@@ -7,17 +8,54 @@ import { MessageBubble } from "./MessageBubble";
 import { Avatar } from "./Avatar";
 import type { Message } from "../types";
 
+type MediaType = "IMAGE" | "VIDEO" | "AUDIO" | "VOICE" | "FILE";
+
+interface PendingUpload {
+  id: string;
+  chatId: string;
+  type: MediaType;
+  fileName: string;
+  previewUrl?: string;
+  error?: boolean;
+}
+
+function detectType(file: File): MediaType {
+  if (file.type.startsWith("image/")) return "IMAGE";
+  if (file.type.startsWith("video/")) return "VIDEO";
+  if (file.type.startsWith("audio/")) return "AUDIO";
+  return "FILE";
+}
+
+function formatTime(totalSeconds: number) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export function ChatWindow() {
   const dispatch = useAppDispatch();
   const socketRef = useSocketRef();
   const me = useAppSelector((s) => s.auth.user);
   const { activeChatId, chats, messages, typing, onlineUsers } = useAppSelector((s) => s.chat);
   const [draft, setDraft] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice recording
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const cancelledRef = useRef(false);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const chat = chats.find((c) => c.id === activeChatId);
   const chatMessages = activeChatId ? messages[activeChatId] ?? [] : [];
+  const chatPendingUploads = pendingUploads.filter((u) => u.chatId === activeChatId);
 
   const other = chat && !chat.isGroup
     ? chat.members.find((m) => m.userId !== me?.id)
@@ -48,7 +86,103 @@ export function ChatWindow() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages.length, someoneTyping]);
+  }, [chatMessages.length, someoneTyping, chatPendingUploads.length]);
+
+  // Stop any in-progress recording if the component unmounts mid-recording.
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  function removePending(id: string) {
+    setPendingUploads((p) => {
+      const item = p.find((u) => u.id === id);
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return p.filter((u) => u.id !== id);
+    });
+  }
+
+  function markFailed(id: string) {
+    setPendingUploads((p) => p.map((u) => (u.id === id ? { ...u, error: true } : u)));
+    setTimeout(() => removePending(id), 4000);
+  }
+
+  async function uploadAndSend(file: File, chatId: string, forcedType?: MediaType) {
+    const type = forcedType ?? detectType(file);
+    const id = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const previewUrl = type === "IMAGE" || type === "VIDEO" ? URL.createObjectURL(file) : undefined;
+    setPendingUploads((p) => [...p, { id, chatId, type, fileName: file.name, previewUrl }]);
+
+    try {
+      const { url, fileName, fileSize } = await uploadToCloudinary(file);
+      socketRef.current?.emit(
+        "message:send",
+        { chatId, type, fileUrl: url, fileName, fileSize },
+        (res: { ok: boolean }) => {
+          if (!res?.ok) markFailed(id);
+          else removePending(id);
+        },
+      );
+    } catch {
+      markFailed(id);
+    }
+  }
+
+  function handleFiles(files: FileList | File[]) {
+    if (!activeChatId) return;
+    for (const file of Array.from(files)) uploadAndSend(file, activeChatId);
+  }
+
+  async function startRecording() {
+    if (!activeChatId) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
+      cancelledRef.current = false;
+      const recorder = new MediaRecorder(stream);
+      const chatId = activeChatId;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (!cancelledRef.current && chunksRef.current.length > 0) {
+          const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+          const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type });
+          uploadAndSend(file, chatId, "VOICE");
+        }
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setRecording(true);
+      setRecordSeconds(0);
+      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch {
+      alert("Microphone access denied or unavailable.");
+    }
+  }
+
+  function stopRecordingInternal() {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+  }
+
+  function stopRecording() {
+    cancelledRef.current = false;
+    stopRecordingInternal();
+  }
+
+  function cancelRecording() {
+    cancelledRef.current = true;
+    stopRecordingInternal();
+  }
 
   function send() {
     const text = draft.trim();
@@ -81,7 +215,22 @@ export function ChatWindow() {
   }
 
   return (
-    <section className="flex-1 flex flex-col h-full bg-ink">
+    <section
+      className="flex-1 flex flex-col h-full bg-ink relative"
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
+      }}
+    >
+      {dragOver && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-ink/80 border-2 border-dashed border-accent text-accent text-sm pointer-events-none">
+          Drop to send
+        </div>
+      )}
+
       <header className="flex items-center gap-3 px-4 py-3 border-b border-surface bg-panel">
         <Avatar name={title} src={chat.iconUrl} size={40} online={online} />
         <div>
@@ -101,6 +250,9 @@ export function ChatWindow() {
             readByOther={!!m.receipts?.some((r) => r.userId !== me?.id)}
           />
         ))}
+        {chatPendingUploads.map((u) => (
+          <PendingBubble key={u.id} item={u} />
+        ))}
         {someoneTyping && (
           <div className="px-4">
             <div className="inline-flex gap-1 bg-bubble rounded-2xl px-3 py-2">
@@ -112,24 +264,85 @@ export function ChatWindow() {
       </div>
 
       <footer className="p-3 border-t border-surface bg-panel">
-        <div className="flex items-end gap-2">
-          <textarea
-            rows={1}
-            value={draft}
-            onChange={(e) => onType(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-            }}
-            placeholder="Type a message"
-            className="flex-1 resize-none bg-ink border border-surface rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 max-h-32"
-          />
-          <button
-            onClick={send}
-            className="w-11 h-11 shrink-0 rounded-full bg-accent hover:bg-accent-dim text-ink flex items-center justify-center text-lg transition"
-          >➤</button>
-        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) handleFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        {recording ? (
+          <div className="flex items-center gap-3 bg-ink border border-surface rounded-2xl px-4 py-2.5">
+            <button
+              type="button"
+              onClick={cancelRecording}
+              className="text-muted hover:text-gray-200 transition"
+              title="Cancel recording"
+            >🗑</button>
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+            <span className="text-sm text-gray-200 flex-1">{formatTime(recordSeconds)}</span>
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="w-9 h-9 shrink-0 rounded-full bg-accent hover:bg-accent-dim text-ink flex items-center justify-center transition"
+              title="Stop and send"
+            >⏹</button>
+          </div>
+        ) : (
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-9 h-9 shrink-0 rounded-full hover:bg-surface text-lg flex items-center justify-center transition"
+              title="Attach file"
+            >📎</button>
+            <textarea
+              rows={1}
+              value={draft}
+              onChange={(e) => onType(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+              }}
+              placeholder="Type a message"
+              className="flex-1 resize-none bg-ink border border-surface rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 max-h-32"
+            />
+            <button
+              type="button"
+              onClick={startRecording}
+              className="w-9 h-9 shrink-0 rounded-full hover:bg-surface text-lg flex items-center justify-center transition"
+              title="Record voice note"
+            >🎤</button>
+            <button
+              onClick={send}
+              className="w-11 h-11 shrink-0 rounded-full bg-accent hover:bg-accent-dim text-ink flex items-center justify-center text-lg transition"
+            >➤</button>
+          </div>
+        )}
       </footer>
     </section>
+  );
+}
+
+function PendingBubble({ item }: { item: PendingUpload }) {
+  return (
+    <div className="flex justify-end px-4">
+      <div className="max-w-[75%] rounded-2xl px-3.5 py-2 text-sm shadow bg-accent text-ink rounded-br-md opacity-70">
+        {item.previewUrl && item.type === "IMAGE" && (
+          <img src={item.previewUrl} className="block max-w-[200px] max-h-56 rounded-lg mb-1" />
+        )}
+        {item.previewUrl && item.type === "VIDEO" && (
+          <video src={item.previewUrl} className="block max-w-[200px] rounded-lg mb-1" />
+        )}
+        <div className="flex items-center gap-2 text-xs">
+          {!item.error && <span className="w-3 h-3 border-2 border-ink/40 border-t-ink rounded-full animate-spin shrink-0" />}
+          <span className="truncate max-w-[180px]">
+            {item.error ? "Upload failed" : `Uploading ${item.fileName}…`}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 

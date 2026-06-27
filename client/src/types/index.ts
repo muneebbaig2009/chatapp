@@ -24,6 +24,7 @@ export interface Message {
   type: "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "VOICE" | "FILE";
   fileUrl?: string | null;
   fileName?: string | null;
+  fileSize?: number | null;
   createdAt: string;
   isEdited?: boolean;
   isDeleted?: boolean;

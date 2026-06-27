@@ -28,7 +28,47 @@ export function MessageBubble({
             {message.replyTo.content}
           </div>
         )}
-        <span className="whitespace-pre-wrap break-words">{message.content}</span>
+
+        {message.type === "IMAGE" && message.fileUrl && (
+          <a href={message.fileUrl} target="_blank" rel="noopener noreferrer">
+            <img
+              src={message.fileUrl}
+              alt={message.fileName ?? "image"}
+              className="block max-w-[260px] max-h-72 w-auto rounded-lg object-cover mb-1 cursor-pointer"
+            />
+          </a>
+        )}
+
+        {message.type === "VIDEO" && message.fileUrl && (
+          <video
+            controls
+            src={message.fileUrl}
+            className="block max-w-[260px] rounded-lg mb-1"
+          />
+        )}
+
+        {(message.type === "AUDIO" || message.type === "VOICE") && message.fileUrl && (
+          <audio controls src={message.fileUrl} className="block max-w-[240px] mb-1" />
+        )}
+
+        {message.type === "FILE" && message.fileUrl && (
+          <a
+            href={message.fileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={message.fileName ?? undefined}
+            className={`flex items-center gap-2 mb-1 px-2 py-1.5 rounded-lg ${
+              mine ? "bg-ink/10 hover:bg-ink/20" : "bg-ink/30 hover:bg-ink/40"
+            }`}
+          >
+            <span className="text-xl">📄</span>
+            <span className="text-sm truncate max-w-[160px]">{message.fileName ?? "File"}</span>
+          </a>
+        )}
+
+        {message.content && (
+          <span className="whitespace-pre-wrap break-words">{message.content}</span>
+        )}
         <span className={`ml-2 align-bottom text-[10px] ${mine ? "text-ink/60" : "text-muted"}`}>
           {time}
           {mine && (
