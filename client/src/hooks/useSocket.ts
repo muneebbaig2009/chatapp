@@ -2,12 +2,7 @@ import { useEffect, useRef } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { api } from "../api/client";
-import {
-  addMessage,
-  setTyping,
-  setPresence,
-  setChats,
-} from "../store/slices/chatSlice";
+import { addMessage, setTyping, setPresence, setChats, markRead } from "../store/slices/chatSlice";
 
 // One shared socket for the whole app, established after login.
 export function useSocket() {
@@ -37,6 +32,9 @@ export function useSocket() {
     );
     socket.on("presence:update", ({ userId, isOnline }) =>
       dispatch(setPresence({ userId, isOnline })),
+    );
+    socket.on("message:read", ({ chatId, messageId, userId }) =>
+      dispatch(markRead({ chatId, messageId, userId }))
     );
 
     return () => {
