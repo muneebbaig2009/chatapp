@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setChats, setActiveChat, upsertChat } from "../store/slices/chatSlice";
 import { logout } from "../store/slices/authSlice";
 import { Avatar } from "./Avatar";
+import { CreateGroupModal } from "./CreateGroupModal";
 import type { Chat, User } from "../types";
 
 export function Sidebar() {
@@ -13,6 +14,8 @@ export function Sidebar() {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<User[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
 
   useEffect(() => {
     api.get<Chat[]>("/chats").then((r) => dispatch(setChats(r.data)));
@@ -56,13 +59,34 @@ export function Sidebar() {
           <span className="font-semibold text-sm">{me?.displayName}</span>
         </div>
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setSearching((s) => !s)}
-            className="w-9 h-9 rounded-lg hover:bg-surface flex items-center justify-center text-lg"
-            title="New chat"
-          >
-            ＋
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="w-9 h-9 rounded-lg hover:bg-surface flex items-center justify-center text-lg"
+              title="New chat or group"
+            >
+              ＋
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-0" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 mt-1 w-44 bg-panel border border-surface rounded-lg shadow-lg z-10 overflow-hidden">
+                  <button
+                    onClick={() => { setSearching(true); setMenuOpen(false); }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface"
+                  >
+                    💬 New chat
+                  </button>
+                  <button
+                    onClick={() => { setGroupModalOpen(true); setMenuOpen(false); }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface"
+                  >
+                    👥 New group
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={async () => {
               await api.post("/auth/logout");
@@ -129,6 +153,7 @@ export function Sidebar() {
                 src={chat.iconUrl}
                 size={44}
                 online={online}
+                isGroup={chat.isGroup}
               />
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-sm truncate">{name}</div>
@@ -141,6 +166,8 @@ export function Sidebar() {
           );
         })}
       </div>
+
+      {groupModalOpen && <CreateGroupModal onClose={() => setGroupModalOpen(false)} />}
     </aside>
   );
 }

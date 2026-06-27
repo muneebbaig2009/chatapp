@@ -1,13 +1,16 @@
 import type { Message } from "../types";
+import { Avatar } from "./Avatar";
 
 export function MessageBubble({
   message,
   mine,
   readByOther = false,
+  showSender = false,
 }: {
   message: Message;
   mine: boolean;
   readByOther?: boolean;
+  showSender?: boolean;
 }) {
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
@@ -15,7 +18,10 @@ export function MessageBubble({
   });
 
   return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"} px-4`}>
+    <div className={`flex ${mine ? "justify-end" : "justify-start"} px-4 gap-2`}>
+      {showSender && (
+        <Avatar name={message.sender?.displayName ?? "?"} src={message.sender?.avatarUrl} size={28} />
+      )}
       <div
         className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm shadow ${
           mine
@@ -23,6 +29,11 @@ export function MessageBubble({
             : "bg-bubble text-gray-100 rounded-bl-md"
         }`}
       >
+        {showSender && (
+          <div className="text-xs font-semibold text-accent mb-0.5">
+            {message.sender?.displayName}
+          </div>
+        )}
         {message.replyTo?.content && (
           <div className={`text-xs mb-1 pl-2 border-l-2 ${mine ? "border-ink/40 text-ink/70" : "border-accent text-muted"}`}>
             {message.replyTo.content}

@@ -45,6 +45,7 @@ export interface Chat {
   id: string;
   isGroup: boolean;
   name: string | null;
+  description?: string | null;
   iconUrl: string | null;
   members: ChatMemberWithUser[];
   messages?: Message[];

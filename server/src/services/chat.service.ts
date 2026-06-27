@@ -1,6 +1,25 @@
 import { prisma } from "../config/prisma.js";
 import { ApiError } from "../utils/ApiError.js";
 
+// Shared include shape so every chat-returning endpoint (direct or group)
+// sends the same nested member/user data to the frontend.
+const chatWithMembersInclude = {
+  members: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          displayName: true,
+          username: true,
+          avatarUrl: true,
+          isOnline: true,
+          lastSeen: true,
+        },
+      },
+    },
+  },
+};
+
 // Find existing 1-to-1 chat between two users, or create one.
 export async function getOrCreateDirectChat(
   userId: string,
@@ -20,22 +39,7 @@ export async function getOrCreateDirectChat(
         { members: { some: { userId: otherUserId } } },
       ],
     },
-    include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              displayName: true,
-              username: true,
-              avatarUrl: true,
-              isOnline: true,
-              lastSeen: true,
-            },
-          },
-        },
-      },
-    },
+    include: chatWithMembersInclude,
   });
   if (existing) return existing;
 
@@ -44,22 +48,7 @@ export async function getOrCreateDirectChat(
       isGroup: false,
       members: { create: [{ userId }, { userId: otherUserId }] },
     },
-    include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              displayName: true,
-              username: true,
-              avatarUrl: true,
-              isOnline: true,
-              lastSeen: true,
-            },
-          },
-        },
-      },
-    },
+    include: chatWithMembersInclude,
   });
 }
 
@@ -67,23 +56,165 @@ export async function listChats(userId: string) {
   return prisma.chat.findMany({
     where: { members: { some: { userId } } },
     include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              displayName: true,
-              username: true,
-              avatarUrl: true,
-              isOnline: true,
-              lastSeen: true,
-            },
-          },
-        },
-      },
+      ...chatWithMembersInclude,
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: { updatedAt: "desc" },
+  });
+}
+
+// Create a new group chat. The creator becomes an admin; everyone else
+// listed joins as a regular member.
+export async function createGroupChat(
+  creatorId: string,
+  name: string,
+  memberIds: string[],
+) {
+  const trimmedName = name?.trim();
+  if (!trimmedName) throw new ApiError(400, "Group name is required");
+
+  const uniqueMemberIds = Array.from(
+    new Set(memberIds.filter((id) => id && id !== creatorId)),
+  );
+  if (uniqueMemberIds.length === 0)
+    throw new ApiError(400, "Select at least one member");
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: uniqueMemberIds } },
+    select: { id: true },
+  });
+  if (users.length !== uniqueMemberIds.length)
+    throw new ApiError(404, "One or more users not found");
+
+  return prisma.chat.create({
+    data: {
+      isGroup: true,
+      name: trimmedName,
+      members: {
+        create: [
+          { userId: creatorId, isAdmin: true },
+          ...uniqueMemberIds.map((userId) => ({ userId, isAdmin: false })),
+        ],
+      },
+    },
+    include: chatWithMembersInclude,
+  });
+}
+
+// Add new members to an existing group (admin only).
+export async function addMembers(
+  requesterId: string,
+  chatId: string,
+  memberIds: string[],
+) {
+  await assertAdmin(requesterId, chatId);
+
+  const chat = await prisma.chat.findUnique({ where: { id: chatId } });
+  if (!chat) throw new ApiError(404, "Chat not found");
+  if (!chat.isGroup) throw new ApiError(400, "Cannot add members to a direct chat");
+
+  const existing = await prisma.chatMember.findMany({
+    where: { chatId },
+    select: { userId: true },
+  });
+  const existingIds = new Set(existing.map((m) => m.userId));
+  const toAdd = Array.from(
+    new Set(memberIds.filter((id) => id && !existingIds.has(id))),
+  );
+  if (toAdd.length === 0) throw new ApiError(400, "No new members to add");
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: toAdd } },
+    select: { id: true },
+  });
+  if (users.length !== toAdd.length)
+    throw new ApiError(404, "One or more users not found");
+
+  await prisma.chatMember.createMany({
+    data: toAdd.map((userId) => ({ chatId, userId, isAdmin: false })),
+  });
+
+  return prisma.chat.findUniqueOrThrow({
+    where: { id: chatId },
+    include: chatWithMembersInclude,
+  });
+}
+
+// Remove a member from a group. Admins can remove anyone; a non-admin can
+// only remove themselves (i.e. leave the group).
+export async function removeMember(
+  requesterId: string,
+  chatId: string,
+  targetUserId: string,
+) {
+  await assertMember(requesterId, chatId);
+  if (requesterId !== targetUserId) await assertAdmin(requesterId, chatId);
+
+  const target = await prisma.chatMember.findUnique({
+    where: { chatId_userId: { chatId, userId: targetUserId } },
+  });
+  if (!target) throw new ApiError(404, "User is not a member of this chat");
+
+  await prisma.chatMember.delete({
+    where: { chatId_userId: { chatId, userId: targetUserId } },
+  });
+
+  return prisma.chat.findUniqueOrThrow({
+    where: { id: chatId },
+    include: chatWithMembersInclude,
+  });
+}
+
+// Promote or demote a member (admin only).
+export async function setMemberAdmin(
+  requesterId: string,
+  chatId: string,
+  targetUserId: string,
+  isAdmin: boolean,
+) {
+  await assertAdmin(requesterId, chatId);
+
+  const target = await prisma.chatMember.findUnique({
+    where: { chatId_userId: { chatId, userId: targetUserId } },
+  });
+  if (!target) throw new ApiError(404, "User is not a member of this chat");
+
+  await prisma.chatMember.update({
+    where: { chatId_userId: { chatId, userId: targetUserId } },
+    data: { isAdmin },
+  });
+
+  return prisma.chat.findUniqueOrThrow({
+    where: { id: chatId },
+    include: chatWithMembersInclude,
+  });
+}
+
+// Update group metadata (admin only).
+export async function updateGroup(
+  requesterId: string,
+  chatId: string,
+  data: { name?: string; description?: string | null; iconUrl?: string | null },
+) {
+  await assertAdmin(requesterId, chatId);
+
+  const chat = await prisma.chat.findUnique({ where: { id: chatId } });
+  if (!chat) throw new ApiError(404, "Chat not found");
+  if (!chat.isGroup) throw new ApiError(400, "Cannot update a direct chat");
+
+  const update: { name?: string; description?: string | null; iconUrl?: string | null } = {};
+  if (data.name !== undefined) {
+    const trimmed = data.name.trim();
+    if (!trimmed) throw new ApiError(400, "Group name is required");
+    update.name = trimmed;
+  }
+  if (data.description !== undefined) update.description = data.description;
+  if (data.iconUrl !== undefined) update.iconUrl = data.iconUrl;
+
+  return prisma.chat.update({
+    where: { id: chatId },
+    data: update,
+    include: chatWithMembersInclude,
   });
 }
 
@@ -151,6 +282,12 @@ export async function assertMember(userId: string, chatId: string) {
     where: { chatId_userId: { chatId, userId } },
   });
   if (!member) throw new ApiError(403, "You are not a member of this chat");
+  return member;
+}
+
+export async function assertAdmin(userId: string, chatId: string) {
+  const member = await assertMember(userId, chatId);
+  if (!member.isAdmin) throw new ApiError(403, "Only group admins can do this");
   return member;
 }
 

@@ -12,10 +12,20 @@ interface SocketUser {
 // Track which users are connected (userId -> set of socket ids)
 const online = new Map<string, Set<string>>();
 
+let ioInstance: Server | null = null;
+
+// Lets REST controllers (e.g. group membership changes) emit to personal
+// rooms without owning the Server instance themselves.
+export function getIO(): Server {
+  if (!ioInstance) throw new Error("Socket.io has not been initialized yet");
+  return ioInstance;
+}
+
 export function initSockets(httpServer: HttpServer) {
   const io = new Server(httpServer, {
     cors: { origin: env.clientOrigin, credentials: true },
   });
+  ioInstance = io;
 
   // Authenticate every socket connection using the access token.
   io.use((socket, next) => {

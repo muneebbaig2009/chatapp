@@ -29,6 +29,12 @@ const chatSlice = createSlice({
       if (i >= 0) state.chats[i] = action.payload;
       else state.chats.unshift(action.payload);
     },
+    removeChat(state, action: PayloadAction<string>) {
+      state.chats = state.chats.filter((c) => c.id !== action.payload);
+      delete state.messages[action.payload];
+      delete state.typing[action.payload];
+      if (state.activeChatId === action.payload) state.activeChatId = null;
+    },
     setActiveChat(state, action: PayloadAction<string | null>) {
       state.activeChatId = action.payload;
     },
@@ -67,7 +73,7 @@ const chatSlice = createSlice({
 });
 
 export const {
-  setChats, upsertChat, setActiveChat, setMessages,
+  setChats, upsertChat, removeChat, setActiveChat, setMessages,
   addMessage, setTyping, setPresence, markRead,
 } = chatSlice.actions;
 export default chatSlice.reducer;

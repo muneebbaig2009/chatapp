@@ -6,6 +6,7 @@ import { setMessages } from "../store/slices/chatSlice";
 import { useSocketRef } from "../hooks/SocketContext";
 import { MessageBubble } from "./MessageBubble";
 import { Avatar } from "./Avatar";
+import { GroupInfoModal } from "./GroupInfoModal";
 import type { Message } from "../types";
 
 type MediaType = "IMAGE" | "VIDEO" | "AUDIO" | "VOICE" | "FILE";
@@ -40,6 +41,7 @@ export function ChatWindow() {
   const [draft, setDraft] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -231,15 +233,26 @@ export function ChatWindow() {
         </div>
       )}
 
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-surface bg-panel">
-        <Avatar name={title} src={chat.iconUrl} size={40} online={online} />
+      <header
+        className={`flex items-center gap-3 px-4 py-3 border-b border-surface bg-panel ${
+          chat.isGroup ? "cursor-pointer hover:bg-surface/40" : ""
+        }`}
+        onClick={() => chat.isGroup && setGroupInfoOpen(true)}
+      >
+        <Avatar name={title} src={chat.iconUrl} size={40} online={chat.isGroup ? undefined : online} isGroup={chat.isGroup} />
         <div>
           <div className="font-medium text-sm">{title}</div>
           <div className="text-xs text-muted">
-            {someoneTyping ? "typing…" : online ? "online" : other ? "offline" : ""}
+            {chat.isGroup
+              ? `${chat.members.length} member${chat.members.length === 1 ? "" : "s"}`
+              : someoneTyping ? "typing…" : online ? "online" : other ? "offline" : ""}
           </div>
         </div>
       </header>
+
+      {chat.isGroup && groupInfoOpen && (
+        <GroupInfoModal chat={chat} onClose={() => setGroupInfoOpen(false)} />
+      )}
 
       <div className="flex-1 overflow-y-auto py-4 space-y-1.5">
         {chatMessages.map((m) => (
@@ -248,6 +261,7 @@ export function ChatWindow() {
             message={m}
             mine={m.senderId === me?.id}
             readByOther={!!m.receipts?.some((r) => r.userId !== me?.id)}
+            showSender={chat.isGroup && m.senderId !== me?.id}
           />
         ))}
         {chatPendingUploads.map((u) => (

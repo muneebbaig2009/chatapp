@@ -3,10 +3,12 @@ interface Props {
   src?: string | null;
   size?: number;
   online?: boolean;
+  isGroup?: boolean;
 }
 
 // Initials avatar with a deterministic teal tint and optional presence dot.
-export function Avatar({ name, src, size = 40, online }: Props) {
+// Groups without an icon fall back to a generic group glyph instead of initials.
+export function Avatar({ name, src, size = 40, online, isGroup }: Props) {
   const initials = name
     .split(" ")
     .map((w) => w[0])
@@ -18,6 +20,13 @@ export function Avatar({ name, src, size = 40, online }: Props) {
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       {src ? (
         <img src={src} alt={name} className="rounded-full object-cover w-full h-full" />
+      ) : isGroup ? (
+        <div
+          className="rounded-full bg-surface flex items-center justify-center text-accent"
+          style={{ width: size, height: size, fontSize: size * 0.5 }}
+        >
+          👥
+        </div>
       ) : (
         <div
           className="rounded-full bg-surface flex items-center justify-center font-semibold text-accent"

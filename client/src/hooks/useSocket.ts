@@ -1,8 +1,12 @@
 import { useEffect, useRef } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { store } from "../store";
 import { api } from "../api/client";
-import { addMessage, setTyping, setPresence, setChats, markRead } from "../store/slices/chatSlice";
+import {
+  addMessage, setTyping, setPresence, setChats, markRead, upsertChat, removeChat,
+} from "../store/slices/chatSlice";
+import type { Chat } from "../types";
 
 // One shared socket for the whole app, established after login.
 export function useSocket() {
@@ -36,6 +40,14 @@ export function useSocket() {
     socket.on("message:read", ({ chatId, messageId, userId }) =>
       dispatch(markRead({ chatId, messageId, userId }))
     );
+    // Membership changed (added/removed/promoted/left/renamed). If we're
+    // still a member, refresh the chat; otherwise drop it from our list.
+    socket.on("group:updated", (chat: Chat) => {
+      const meId = store.getState().auth.user?.id;
+      const stillMember = chat.members.some((m) => m.userId === meId);
+      if (stillMember) dispatch(upsertChat(chat));
+      else dispatch(removeChat(chat.id));
+    });
 
     return () => {
       socket.disconnect();
