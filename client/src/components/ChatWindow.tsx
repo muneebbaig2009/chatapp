@@ -11,52 +11,37 @@ export function ChatWindow() {
   const dispatch = useAppDispatch();
   const socketRef = useSocketRef();
   const me = useAppSelector((s) => s.auth.user);
-  const { activeChatId, chats, messages, typing, onlineUsers } = useAppSelector(
-    (s) => s.chat,
-  );
+  const { activeChatId, chats, messages, typing, onlineUsers } = useAppSelector((s) => s.chat);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const chat = chats.find((c) => c.id === activeChatId);
-  const chatMessages = activeChatId ? (messages[activeChatId] ?? []) : [];
+  const chatMessages = activeChatId ? messages[activeChatId] ?? [] : [];
 
-  const other =
-    chat && !chat.isGroup
-      ? chat.members.find((m) => m.userId !== me?.id)
-      : undefined;
-  const title = chat?.isGroup
-    ? (chat.name ?? "Group")
-    : (other?.user?.displayName ?? "");
+  const other = chat && !chat.isGroup
+    ? chat.members.find((m) => m.userId !== me?.id)
+    : undefined;
+  const title = chat?.isGroup ? chat.name ?? "Group" : other?.user?.displayName ?? "";
   const online = other ? onlineUsers[other.userId] : undefined;
-  const someoneTyping = activeChatId
-    ? (typing[activeChatId]?.length ?? 0) > 0
-    : false;
+  const someoneTyping = activeChatId ? (typing[activeChatId]?.length ?? 0) > 0 : false;
 
-  // Load history + join the chat room when switching chats.
   // Load history + join the chat room when switching chats.
   useEffect(() => {
     if (!activeChatId) return;
     socketRef.current?.emit("chat:join", activeChatId);
-    api
-      .get<Message[]>(`/chats/${activeChatId}/messages`)
-      .then((r) =>
-        dispatch(setMessages({ chatId: activeChatId, messages: r.data })),
-      );
-    return () => {
-      socketRef.current?.emit("chat:leave", activeChatId);
-    };
+    api.get<Message[]>(`/chats/${activeChatId}/messages`).then((r) =>
+      dispatch(setMessages({ chatId: activeChatId, messages: r.data }))
+    );
+    return () => { socketRef.current?.emit("chat:leave", activeChatId); };
   }, [activeChatId, dispatch, socketRef]);
 
-  // Mark the other person's messages as read whenever they're visible.
+  // Mark the other person's messages as read whenever they're on screen.
   useEffect(() => {
     if (!activeChatId) return;
     for (const m of chatMessages) {
       if (m.senderId !== me?.id) {
-        socketRef.current?.emit("message:read", {
-          chatId: activeChatId,
-          messageId: m.id,
-        });
+        socketRef.current?.emit("message:read", { chatId: activeChatId, messageId: m.id });
       }
     }
   }, [activeChatId, chatMessages, me?.id, socketRef]);
@@ -68,11 +53,7 @@ export function ChatWindow() {
   function send() {
     const text = draft.trim();
     if (!text || !activeChatId) return;
-    socketRef.current?.emit("message:send", {
-      chatId: activeChatId,
-      content: text,
-      type: "TEXT",
-    });
+    socketRef.current?.emit("message:send", { chatId: activeChatId, content: text, type: "TEXT" });
     socketRef.current?.emit("typing:stop", activeChatId);
     setDraft("");
   }
@@ -84,7 +65,7 @@ export function ChatWindow() {
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
     typingTimeout.current = setTimeout(
       () => socketRef.current?.emit("typing:stop", activeChatId),
-      1500,
+      1500
     );
   }
 
@@ -106,13 +87,7 @@ export function ChatWindow() {
         <div>
           <div className="font-medium text-sm">{title}</div>
           <div className="text-xs text-muted">
-            {someoneTyping
-              ? "typing…"
-              : online
-                ? "online"
-                : other
-                  ? "offline"
-                  : ""}
+            {someoneTyping ? "typing…" : online ? "online" : other ? "offline" : ""}
           </div>
         </div>
       </header>
@@ -143,10 +118,7 @@ export function ChatWindow() {
             value={draft}
             onChange={(e) => onType(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
             }}
             placeholder="Type a message"
             className="flex-1 resize-none bg-ink border border-surface rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 max-h-32"
@@ -154,9 +126,7 @@ export function ChatWindow() {
           <button
             onClick={send}
             className="w-11 h-11 shrink-0 rounded-full bg-accent hover:bg-accent-dim text-ink flex items-center justify-center text-lg transition"
-          >
-            ➤
-          </button>
+          >➤</button>
         </div>
       </footer>
     </section>

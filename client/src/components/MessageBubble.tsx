@@ -32,7 +32,7 @@ export function MessageBubble({
         <span className={`ml-2 align-bottom text-[10px] ${mine ? "text-ink/60" : "text-muted"}`}>
           {time}
           {mine && (
-            <span className={`ml-1 ${readByOther ? "text-blue-600" : "text-ink/50"}`}>
+            <span className={`ml-1 font-semibold ${readByOther ? "text-blue-700" : "text-ink/50"}`}>
               {readByOther ? "✓✓" : "✓"}
             </span>
           )}

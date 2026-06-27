@@ -42,6 +42,16 @@ const chatSlice = createSlice({
         state.messages[m.chatId] = [...list, m];
       }
     },
+    setTyping(state, action: PayloadAction<{ chatId: string; userId: string; typing: boolean }>) {
+      const { chatId, userId, typing } = action.payload;
+      const cur = state.typing[chatId] ?? [];
+      state.typing[chatId] = typing
+        ? Array.from(new Set([...cur, userId]))
+        : cur.filter((u) => u !== userId);
+    },
+    setPresence(state, action: PayloadAction<{ userId: string; isOnline: boolean }>) {
+      state.onlineUsers[action.payload.userId] = action.payload.isOnline;
+    },
     markRead(state, action: PayloadAction<{ chatId: string; messageId: string; userId: string }>) {
       const { chatId, messageId, userId } = action.payload;
       const list = state.messages[chatId];
@@ -52,16 +62,6 @@ const chatSlice = createSlice({
       if (!msg.receipts.some((r) => r.userId === userId)) {
         msg.receipts.push({ userId, status: "READ" });
       }
-    },
-    setTyping(state, action: PayloadAction<{ chatId: string; userId: string; typing: boolean }>) {
-      const { chatId, userId, typing } = action.payload;
-      const cur = state.typing[chatId] ?? [];
-      state.typing[chatId] = typing
-        ? Array.from(new Set([...cur, userId]))
-        : cur.filter((u) => u !== userId);
-    },
-    setPresence(state, action: PayloadAction<{ userId: string; isOnline: boolean }>) {
-      state.onlineUsers[action.payload.userId] = action.payload.isOnline;
     },
   },
 });
