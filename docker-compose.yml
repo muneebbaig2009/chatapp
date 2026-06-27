@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: chatuser
+      POSTGRES_PASSWORD: chatpass
+      POSTGRES_DB: chatdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatuser -d chatdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://chatuser:chatpass@db:5432/chatdb?schema=public"
+      JWT_ACCESS_SECRET: "a0a6b0273b5600bc7e9c1108bbe0e2c143c0bb09d41fa11a4d7b13005d36fd7a"
+      JWT_REFRESH_SECRET: "86222c99b85bac9ce6860ec80c310ca8f944c8420a8be3202545a8947b092140"
+      CLIENT_ORIGIN: "http://localhost:8080"
+      PORT: 4000
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+
+volumes:
+  pgdata:
