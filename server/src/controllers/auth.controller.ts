@@ -4,10 +4,11 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { env } from "../config/env.js";
 
+const isProd = process.env.NODE_ENV === "production";
 const cookieOpts = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
+  secure: isProd,                       // HTTPS only in prod
+  sameSite: isProd ? "none" as const : "lax" as const,
   maxAge: env.refreshTokenTtlDays * 24 * 60 * 60 * 1000,
   path: "/api/auth",
 };

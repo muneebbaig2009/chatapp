@@ -30,6 +30,7 @@ export interface Message {
   sender?: { id: string; displayName: string; avatarUrl: string | null };
   reactions?: Reaction[];
   replyTo?: { id: string; content: string | null; senderId: string } | null;
+  receipts?: { userId: string; status: string }[];
 }
 
 export interface ChatMemberWithUser {

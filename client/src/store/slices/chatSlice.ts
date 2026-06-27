@@ -42,6 +42,17 @@ const chatSlice = createSlice({
         state.messages[m.chatId] = [...list, m];
       }
     },
+    markRead(state, action: PayloadAction<{ chatId: string; messageId: string; userId: string }>) {
+      const { chatId, messageId, userId } = action.payload;
+      const list = state.messages[chatId];
+      if (!list) return;
+      const msg = list.find((m) => m.id === messageId);
+      if (!msg) return;
+      msg.receipts = msg.receipts ?? [];
+      if (!msg.receipts.some((r) => r.userId === userId)) {
+        msg.receipts.push({ userId, status: "READ" });
+      }
+    },
     setTyping(state, action: PayloadAction<{ chatId: string; userId: string; typing: boolean }>) {
       const { chatId, userId, typing } = action.payload;
       const cur = state.typing[chatId] ?? [];
@@ -57,6 +68,6 @@ const chatSlice = createSlice({
 
 export const {
   setChats, upsertChat, setActiveChat, setMessages,
-  addMessage, setTyping, setPresence,
+  addMessage, setTyping, setPresence, markRead,
 } = chatSlice.actions;
 export default chatSlice.reducer;

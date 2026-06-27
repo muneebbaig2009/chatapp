@@ -1,6 +1,14 @@
 import type { Message } from "../types";
 
-export function MessageBubble({ message, mine }: { message: Message; mine: boolean }) {
+export function MessageBubble({
+  message,
+  mine,
+  readByOther = false,
+}: {
+  message: Message;
+  mine: boolean;
+  readByOther?: boolean;
+}) {
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -23,6 +31,11 @@ export function MessageBubble({ message, mine }: { message: Message; mine: boole
         <span className="whitespace-pre-wrap break-words">{message.content}</span>
         <span className={`ml-2 align-bottom text-[10px] ${mine ? "text-ink/60" : "text-muted"}`}>
           {time}
+          {mine && (
+            <span className={`ml-1 ${readByOther ? "text-blue-600" : "text-ink/50"}`}>
+              {readByOther ? "✓✓" : "✓"}
+            </span>
+          )}
         </span>
       </div>
     </div>
