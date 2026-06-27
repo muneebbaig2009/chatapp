@@ -69,13 +69,19 @@ export function initSockets(httpServer: HttpServer) {
     );
 
     // Read receipt
+    // Read receipt
     socket.on("message:read", async ({ chatId, messageId }) => {
       await prisma.messageReceipt.upsert({
         where: { messageId_userId: { messageId, userId } },
         create: { messageId, userId, status: "READ" },
         update: { status: "READ" },
       });
-      socket.to(`chat:${chatId}`).emit("message:read", { messageId, userId });
+      // Notify all members in their personal rooms so the sender sees the tick
+      // flip even if they don't have the chat open.
+      const members = await chatService.memberIds(chatId);
+      for (const memberId of members) {
+        io.to(`user:${memberId}`).emit("message:read", { chatId, messageId, userId });
+      }
     });
 
     // Reaction

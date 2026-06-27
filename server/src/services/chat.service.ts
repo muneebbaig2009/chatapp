@@ -103,6 +103,7 @@ export async function getMessages(
       sender: { select: { id: true, displayName: true, avatarUrl: true } },
       reactions: true,
       replyTo: { select: { id: true, content: true, senderId: true } },
+      receipts: true,
     },
     orderBy: { createdAt: "desc" },
     take: limit,
