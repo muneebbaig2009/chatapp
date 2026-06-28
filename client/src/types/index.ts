@@ -50,3 +50,11 @@ export interface Chat {
   members: ChatMemberWithUser[];
   messages?: Message[];
 }
+
+export type CallType = "voice" | "video";
+
+export interface CallPeer {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+}

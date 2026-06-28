@@ -104,6 +104,43 @@ export function initSockets(httpServer: HttpServer) {
       io.to(`chat:${chatId}`).emit("reaction:add", reaction);
     });
 
+    // WebRTC call signaling — this server only relays offers/answers/ICE
+    // candidates between the two participants' personal rooms; it never
+    // inspects media itself.
+    socket.on("call:initiate", async ({ toUserId, chatId, callType, offer }) => {
+      await chatService.assertMember(userId, chatId);
+      if (!online.has(toUserId)) {
+        socket.emit("call:rejected", { fromUserId: toUserId, reason: "offline" });
+        return;
+      }
+      const caller = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, displayName: true, avatarUrl: true },
+      });
+      io.to(`user:${toUserId}`).emit("call:incoming", {
+        chatId,
+        callType,
+        offer,
+        caller: caller ?? { id: userId, displayName: "Unknown", avatarUrl: null },
+      });
+    });
+
+    socket.on("call:accept", ({ toUserId, answer }) => {
+      io.to(`user:${toUserId}`).emit("call:accepted", { fromUserId: userId, answer });
+    });
+
+    socket.on("call:reject", ({ toUserId }) => {
+      io.to(`user:${toUserId}`).emit("call:rejected", { fromUserId: userId });
+    });
+
+    socket.on("call:ice-candidate", ({ toUserId, candidate }) => {
+      io.to(`user:${toUserId}`).emit("call:ice-candidate", { fromUserId: userId, candidate });
+    });
+
+    socket.on("call:end", ({ toUserId }) => {
+      io.to(`user:${toUserId}`).emit("call:ended", { fromUserId: userId });
+    });
+
     socket.on("disconnect", async () => {
       const set = online.get(userId);
       set?.delete(socket.id);

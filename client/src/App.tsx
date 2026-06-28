@@ -3,8 +3,10 @@ import { api } from "./api/client";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setAccessToken, setUser, logout } from "./store/slices/authSlice";
 import { SocketProvider } from "./hooks/SocketContext";
+import { CallProvider } from "./hooks/CallContext";
 import { AuthPage } from "./pages/AuthPage";
 import { ChatPage } from "./pages/ChatPage";
+import { CallOverlay } from "./components/CallOverlay";
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -39,7 +41,10 @@ export default function App() {
 
   return (
     <SocketProvider>
-      <ChatPage />
+      <CallProvider>
+        <ChatPage />
+        <CallOverlay />
+      </CallProvider>
     </SocketProvider>
   );
 }

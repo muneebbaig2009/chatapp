@@ -4,6 +4,7 @@ import { uploadToCloudinary } from "../api/cloudinary";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setMessages } from "../store/slices/chatSlice";
 import { useSocketRef } from "../hooks/SocketContext";
+import { useCall } from "../hooks/CallContext";
 import { MessageBubble } from "./MessageBubble";
 import { Avatar } from "./Avatar";
 import { GroupInfoModal } from "./GroupInfoModal";
@@ -36,6 +37,7 @@ function formatTime(totalSeconds: number) {
 export function ChatWindow() {
   const dispatch = useAppDispatch();
   const socketRef = useSocketRef();
+  const call = useCall();
   const me = useAppSelector((s) => s.auth.user);
   const { activeChatId, chats, messages, typing, onlineUsers } = useAppSelector((s) => s.chat);
   const [draft, setDraft] = useState("");
@@ -205,6 +207,15 @@ export function ChatWindow() {
     );
   }
 
+  function placeCall(callType: "voice" | "video") {
+    if (!chat || chat.isGroup || !other) return;
+    call.startCall(
+      chat.id,
+      { id: other.userId, displayName: other.user.displayName, avatarUrl: other.user.avatarUrl },
+      callType,
+    );
+  }
+
   if (!chat) {
     return (
       <section className="flex-1 hidden sm:flex items-center justify-center text-center px-6">
@@ -233,21 +244,43 @@ export function ChatWindow() {
         </div>
       )}
 
-      <header
-        className={`flex items-center gap-3 px-4 py-3 border-b border-surface bg-panel ${
-          chat.isGroup ? "cursor-pointer hover:bg-surface/40" : ""
-        }`}
-        onClick={() => chat.isGroup && setGroupInfoOpen(true)}
-      >
-        <Avatar name={title} src={chat.iconUrl} size={40} online={chat.isGroup ? undefined : online} isGroup={chat.isGroup} />
-        <div>
-          <div className="font-medium text-sm">{title}</div>
-          <div className="text-xs text-muted">
-            {chat.isGroup
-              ? `${chat.members.length} member${chat.members.length === 1 ? "" : "s"}`
-              : someoneTyping ? "typing…" : online ? "online" : other ? "offline" : ""}
+      <header className="flex items-center gap-3 px-4 py-3 border-b border-surface bg-panel">
+        <div
+          className={`flex items-center gap-3 flex-1 min-w-0 ${
+            chat.isGroup ? "cursor-pointer hover:bg-surface/40 rounded-lg -mx-1 px-1" : ""
+          }`}
+          onClick={() => chat.isGroup && setGroupInfoOpen(true)}
+        >
+          <Avatar name={title} src={chat.iconUrl} size={40} online={chat.isGroup ? undefined : online} isGroup={chat.isGroup} />
+          <div className="min-w-0">
+            <div className="font-medium text-sm truncate">{title}</div>
+            <div className="text-xs text-muted truncate">
+              {chat.isGroup
+                ? `${chat.members.length} member${chat.members.length === 1 ? "" : "s"}`
+                : someoneTyping ? "typing…" : online ? "online" : other ? "offline" : ""}
+            </div>
           </div>
         </div>
+        {!chat.isGroup && other && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => placeCall("voice")}
+              disabled={call.callState.status !== "idle"}
+              className="w-9 h-9 rounded-lg hover:bg-surface flex items-center justify-center text-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Voice call"
+            >
+              📞
+            </button>
+            <button
+              onClick={() => placeCall("video")}
+              disabled={call.callState.status !== "idle"}
+              className="w-9 h-9 rounded-lg hover:bg-surface flex items-center justify-center text-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Video call"
+            >
+              🎥
+            </button>
+          </div>
+        )}
       </header>
 
       {chat.isGroup && groupInfoOpen && (

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { store } from "../store";
@@ -13,11 +13,16 @@ export function useSocket() {
   const token = useAppSelector((s) => s.auth.accessToken);
   const dispatch = useAppDispatch();
   const socketRef = useRef<Socket | null>(null);
+  // Bumped whenever the socket instance is replaced (e.g. after a token
+  // refresh), so consumers that bind .on() listeners outside this hook know
+  // to rebind to the fresh instance instead of a stale, disconnected one.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     if (!token) return;
     const socket = io(import.meta.env.VITE_API_URL ?? "/", { auth: { token } });
     socketRef.current = socket;
+    setVersion((v) => v + 1);
 
     socket.on("message:new", (msg) => {
       dispatch(addMessage(msg));
@@ -55,5 +60,5 @@ export function useSocket() {
     };
   }, [token, dispatch]);
 
-  return socketRef;
+  return { socketRef, version };
 }

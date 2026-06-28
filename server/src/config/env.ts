@@ -15,4 +15,6 @@ export const env = {
   refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS || 7),
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
   port: Number(process.env.PORT || 4000),
+  meteredApiKey: process.env.METERED_API_KEY,
+  meteredDomain: process.env.METERED_DOMAIN,
 };

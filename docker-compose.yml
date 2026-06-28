@@ -31,6 +31,8 @@ services:
       CLIENT_ORIGIN: "http://localhost:8080"
       PORT: 4000
       NODE_ENV: production
+      METERED_API_KEY: "f93f4b726f084336eebb0cebfabc4053e8f0"
+      METERED_DOMAIN: "kannochatapp.metered.live"
     ports:
       - "4000:4000"
 

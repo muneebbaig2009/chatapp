@@ -7,6 +7,7 @@ import { env } from "./config/env.js";
 import authRoutes from "./routes/auth.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import userRoutes from "./routes/user.routes.js";
+import callRoutes from "./routes/call.routes.js";
 import { errorHandler } from "./middleware/error.js";
 
 export function createApp() {
@@ -24,6 +25,7 @@ export function createApp() {
   app.use("/api/auth", authLimiter, authRoutes);
   app.use("/api/users", userRoutes);
   app.use("/api/chats", chatRoutes);
+  app.use("/api/calls", callRoutes);
 
   app.use(errorHandler);
   return app;
