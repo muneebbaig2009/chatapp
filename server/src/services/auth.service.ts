@@ -9,10 +9,19 @@ function publicUser(u: { id: string; email: string; username: string; displayNam
   return { id: u.id, email: u.email, username: u.username, displayName: u.displayName, avatarUrl: u.avatarUrl, about: u.about };
 }
 
-async function issueTokens(userId: string) {
+// "Remember me" unchecked gets a short-lived (1 day) backing token paired
+// with a session cookie (see auth.controller.ts); checked gets the full
+// configured TTL with a persistent cookie. No separate DB column for the
+// choice — refresh() infers it back from how long the token was issued for.
+const REMEMBER_ME_TTL_DAYS = env.refreshTokenTtlDays;
+const NOT_REMEMBERED_TTL_DAYS = 1;
+const REMEMBER_ME_THRESHOLD_MS = 2 * 24 * 60 * 60 * 1000;
+
+async function issueTokens(userId: string, rememberMe: boolean) {
   const accessToken = signAccessToken({ userId });
   const refreshToken = signRefreshToken({ userId });
-  const expiresAt = new Date(Date.now() + env.refreshTokenTtlDays * 24 * 60 * 60 * 1000);
+  const ttlDays = rememberMe ? REMEMBER_ME_TTL_DAYS : NOT_REMEMBERED_TTL_DAYS;
+  const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000);
   await prisma.refreshToken.create({ data: { token: refreshToken, userId, expiresAt } });
   return { accessToken, refreshToken };
 }
@@ -31,7 +40,7 @@ export async function register(input: RegisterInput) {
       passwordHash: await hashPassword(input.password),
     },
   });
-  const tokens = await issueTokens(user.id);
+  const tokens = await issueTokens(user.id, input.rememberMe ?? false);
   return { user: publicUser(user), ...tokens };
 }
 
@@ -40,7 +49,7 @@ export async function login(input: LoginInput) {
   if (!user) throw new ApiError(401, "Invalid credentials");
   const ok = await comparePassword(input.password, user.passwordHash);
   if (!ok) throw new ApiError(401, "Invalid credentials");
-  const tokens = await issueTokens(user.id);
+  const tokens = await issueTokens(user.id, input.rememberMe ?? false);
   return { user: publicUser(user), ...tokens };
 }
 
@@ -49,9 +58,11 @@ export async function refresh(oldToken: string) {
   if (!stored || stored.expiresAt < new Date()) {
     throw new ApiError(401, "Invalid refresh token");
   }
+  const rememberMe = stored.expiresAt.getTime() - stored.createdAt.getTime() > REMEMBER_ME_THRESHOLD_MS;
   // Rotate: delete old, issue new
-await prisma.refreshToken.deleteMany({ where: { token: oldToken } });
-  return issueTokens(stored.userId);
+  await prisma.refreshToken.deleteMany({ where: { token: oldToken } });
+  const tokens = await issueTokens(stored.userId, rememberMe);
+  return { ...tokens, rememberMe };
 }
 
 export async function logout(token: string) {

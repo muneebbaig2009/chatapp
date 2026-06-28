@@ -1,4 +1,5 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
+import { randomUUID } from "crypto";
 import { env } from "../config/env.js";
 
 export interface AccessPayload {
@@ -16,7 +17,11 @@ export function verifyAccessToken(token: string): AccessPayload {
 }
 
 export function signRefreshToken(payload: AccessPayload): string {
-  return jwt.sign(payload, env.jwtRefreshSecret, {
+  // jwt.sign's iat has only second-level granularity, so two refresh calls
+  // for the same user within the same second would otherwise produce an
+  // identical token string — and the DB's unique constraint on `token`
+  // rejects the second insert. A random jti guarantees uniqueness.
+  return jwt.sign({ ...payload, jti: randomUUID() }, env.jwtRefreshSecret, {
     expiresIn: `${env.refreshTokenTtlDays}d` as SignOptions["expiresIn"],
   });
 }

@@ -10,6 +10,7 @@ import userRoutes from "./routes/user.routes.js";
 import callRoutes from "./routes/call.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import statusRoutes from "./routes/status.routes.js";
+import pushRoutes from "./routes/push.routes.js";
 import { errorHandler } from "./middleware/error.js";
 
 export function createApp() {
@@ -30,6 +31,7 @@ export function createApp() {
   app.use("/api/calls", callRoutes);
   app.use("/api/messages", messageRoutes);
   app.use("/api/statuses", statusRoutes);
+  app.use("/api/push", pushRoutes);
 
   app.use(errorHandler);
   return app;

@@ -7,6 +7,7 @@ export function AuthPage() {
   const dispatch = useAppDispatch();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [form, setForm] = useState({ email: "", username: "", displayName: "", password: "" });
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -19,8 +20,8 @@ export function AuthPage() {
       const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
       const payload =
         mode === "login"
-          ? { email: form.email, password: form.password }
-          : form;
+          ? { email: form.email, password: form.password, rememberMe }
+          : { ...form, rememberMe };
       const { data } = await api.post(endpoint, payload);
       dispatch(setCredentials({ user: data.user, accessToken: data.accessToken }));
     } catch (e: any) {
@@ -52,6 +53,16 @@ export function AuthPage() {
           )}
           <Field label="Email" type="email" value={form.email} onChange={(v) => update("email", v)} />
           <Field label="Password" type="password" value={form.password} onChange={(v) => update("password", v)} />
+
+          <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="rounded border-surface bg-panel accent-accent"
+            />
+            Keep me signed in
+          </label>
 
           {error && <p className="text-sm text-red-400">{error}</p>}
 

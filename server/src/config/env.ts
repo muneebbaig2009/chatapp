@@ -17,4 +17,7 @@ export const env = {
   port: Number(process.env.PORT || 4000),
   meteredApiKey: process.env.METERED_API_KEY,
   meteredDomain: process.env.METERED_DOMAIN,
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
+  vapidSubject: process.env.VAPID_SUBJECT,
 };

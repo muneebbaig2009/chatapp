@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { useSocketRef, useSocketVersion } from "./SocketContext";
+import { startRingSound, stopRingSound } from "../utils/sound";
 import type { CallPeer, CallType } from "../types";
 
 type CallStatus = "idle" | "outgoing" | "incoming" | "connecting" | "active";
@@ -44,6 +45,7 @@ export function useWebRTC() {
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
 
   const cleanup = useCallback(() => {
+    stopRingSound();
     pcRef.current?.close();
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -114,6 +116,7 @@ export function useWebRTC() {
   const startCall = useCallback(async (chatId: string, peer: CallPeer, callType: CallType) => {
     if (callStateRef.current.status !== "idle") return;
     setCallState({ status: "outgoing", callType, chatId, peer, isCaller: true });
+    startRingSound(); // ringback while waiting for the callee to pick up
     try {
       const [stream, iceServers] = await Promise.all([getLocalMedia(callType), fetchIceServers()]);
       const pc = createPeerConnection(peer.id, iceServers);
@@ -138,6 +141,7 @@ export function useWebRTC() {
     const { chatId, callType, peer } = callStateRef.current;
     if (!peer || !callType || !chatId) return;
     setCallState((s) => ({ ...s, status: "connecting" }));
+    stopRingSound();
     try {
       const [stream, iceServers] = await Promise.all([getLocalMedia(callType), fetchIceServers()]);
       const pc = createPeerConnection(peer.id, iceServers);
@@ -194,6 +198,7 @@ export function useWebRTC() {
       }
       pendingOfferRef.current = offer;
       setCallState({ status: "incoming", callType, chatId, peer: caller, isCaller: false });
+      startRingSound();
     }
 
     async function onAccepted({ answer }: { answer: RTCSessionDescriptionInit }) {
@@ -202,6 +207,7 @@ export function useWebRTC() {
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
       flushPendingCandidates(pc);
       setCallState((s) => (s.status === "idle" ? s : { ...s, status: "connecting" }));
+      stopRingSound();
     }
 
     function onRejected() {

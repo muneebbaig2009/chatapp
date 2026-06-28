@@ -33,6 +33,9 @@ services:
       NODE_ENV: production
       METERED_API_KEY: "f93f4b726f084336eebb0cebfabc4053e8f0"
       METERED_DOMAIN: "kannochatapp.metered.live"
+      VAPID_PUBLIC_KEY: "BFoiK-3YYdkfWhfNzAG1mnlmXOyZQUlr87_sHpX5OWKX8CypPrew2d5vHPjdO_4T_4VCb_9WxoGauX4SFZ3YR5M"
+      VAPID_PRIVATE_KEY: "Zpo1X92GV0YyKng0ojMsjon-Iuo-e27_K4UrAXkN7RQ"
+      VAPID_SUBJECT: "mailto:muneebbaig2009@gmail.com"
     ports:
       - "4000:4000"
 

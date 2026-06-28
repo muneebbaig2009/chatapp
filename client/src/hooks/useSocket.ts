@@ -8,6 +8,7 @@ import {
 } from "../store/slices/chatSlice";
 import { upsertCallLogEntry } from "../store/slices/callSlice";
 import { setStatusFeed } from "../store/slices/statusSlice";
+import { playMessageSound } from "../utils/sound";
 import type { Chat, CallLogEntry, Message } from "../types";
 
 // One shared socket for the whole app, established after login.
@@ -26,7 +27,7 @@ export function useSocket() {
     socketRef.current = socket;
     setVersion((v) => v + 1);
 
-    socket.on("message:new", (msg) => {
+    socket.on("message:new", (msg: Message) => {
       dispatch(addMessage(msg));
       // Refresh the chat list so a brand-new conversation shows up and
       // last-message previews stay current.
@@ -34,6 +35,10 @@ export function useSocket() {
         .get("/chats")
         .then((r) => dispatch(setChats(r.data)))
         .catch(() => {});
+      // Audible ding for everyone else's messages, even while this tab is
+      // focused — chat is already live via the socket, just give a sound cue.
+      const meId = store.getState().auth.user?.id;
+      if (msg.senderId !== meId) playMessageSound();
     });
     socket.on("typing:start", ({ chatId, userId }) =>
       dispatch(setTyping({ chatId, userId, typing: true })),

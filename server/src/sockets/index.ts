@@ -5,6 +5,8 @@ import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 import * as chatService from "../services/chat.service.js";
 import * as callService from "../services/call.service.js";
+import * as pushService from "../services/push.service.js";
+import type { PushPayload } from "../services/push.service.js";
 
 interface SocketUser {
   userId: string;
@@ -29,6 +31,39 @@ const activeCalls = new Map<string, ActiveCall>();
 function clearActiveCall(entry: ActiveCall) {
   activeCalls.delete(entry.callerId);
   activeCalls.delete(entry.calleeId);
+}
+
+const PUSH_BODY_MAX_LENGTH = 100;
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function pushBodyForMessage(type: string, content: string | null): string {
+  switch (type) {
+    case "IMAGE": return "📎 Photo";
+    case "VIDEO": return "📎 Video";
+    case "AUDIO": return "📎 Audio";
+    case "VOICE": return "🎙️ Voice message";
+    case "FILE": return "📎 Attachment";
+    default: return content ?? "";
+  }
+}
+
+// Built once per message and reused for every offline member's push — keep
+// it small, push services cap payload size.
+function buildMessagePushPayload(msg: {
+  chatId: string;
+  type: string;
+  content: string | null;
+  sender?: { displayName: string; avatarUrl: string | null } | null;
+}): PushPayload {
+  return {
+    title: msg.sender?.displayName ?? "New message",
+    body: truncate(pushBodyForMessage(msg.type, msg.content), PUSH_BODY_MAX_LENGTH),
+    icon: msg.sender?.avatarUrl ?? undefined,
+    data: { chatId: msg.chatId },
+  };
 }
 
 let ioInstance: Server | null = null;
@@ -104,6 +139,14 @@ export function initSockets(httpServer: HttpServer) {
           io.to(`user:${memberId}`).emit("message:new", msg);
         }
         ack?.({ ok: true, message: msg });
+
+        // Push is only a fallback for members who aren't connected right
+        // now — anyone online already got it live via message:new above.
+        const pushPayload = buildMessagePushPayload(msg);
+        for (const memberId of members) {
+          if (memberId === userId || online.has(memberId)) continue;
+          pushService.sendPushToUser(memberId, pushPayload).catch(() => {});
+        }
       } catch (e: any) {
         ack?.({ ok: false, error: e.message });
       }
@@ -151,10 +194,23 @@ export function initSockets(httpServer: HttpServer) {
       const prismaCallType = callType === "video" ? "VIDEO" : "VOICE";
       const call = await callService.createPendingCall(userId, toUserId, chatId ?? null, prismaCallType);
 
+      const caller = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, displayName: true, avatarUrl: true },
+      });
+
       if (!online.has(toUserId)) {
         const missed = await callService.markMissed(call.id);
         socket.emit("call:logged", callService.toCallLogEntry(missed, userId));
         socket.emit("call:rejected", { fromUserId: toUserId, reason: "offline" });
+        // They can't ring live without a connected socket — push a missed-call
+        // notification so they at least know to call back.
+        pushService.sendPushToUser(toUserId, {
+          title: caller?.displayName ?? "Missed call",
+          body: prismaCallType === "VIDEO" ? "📹 Missed video call" : "📞 Missed voice call",
+          icon: caller?.avatarUrl ?? undefined,
+          data: { chatId },
+        }).catch(() => {});
         return;
       }
 
@@ -162,10 +218,6 @@ export function initSockets(httpServer: HttpServer) {
       activeCalls.set(userId, entry);
       activeCalls.set(toUserId, entry);
 
-      const caller = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, displayName: true, avatarUrl: true },
-      });
       io.to(`user:${toUserId}`).emit("call:incoming", {
         chatId,
         callType,

@@ -9,6 +9,7 @@ import { Avatar } from "./Avatar";
 import { CreateGroupModal } from "./CreateGroupModal";
 import { CallHistoryList } from "./CallHistoryList";
 import { StatusList } from "./StatusList";
+import { getPushSubscriptionStatus, enablePushNotifications, disablePushNotifications } from "../utils/push";
 import type { Chat, CallLogEntry, StatusFeed, User } from "../types";
 
 export function Sidebar() {
@@ -23,9 +24,33 @@ export function Sidebar() {
   const [results, setResults] = useState<User[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
   const missedCount = callLog.filter((c) => c.direction === "incoming" && c.status === "MISSED").length;
   const hasUnseenStatus = statusOthers.some((g) => g.hasUnseen);
+
+  useEffect(() => {
+    getPushSubscriptionStatus().then(setPushEnabled);
+  }, []);
+
+  async function togglePush() {
+    setPushBusy(true);
+    try {
+      if (pushEnabled) {
+        await disablePushNotifications();
+        setPushEnabled(false);
+      } else {
+        const granted = await enablePushNotifications();
+        setPushEnabled(granted);
+        if (!granted) alert("Notification permission was denied.");
+      }
+    } catch (e: any) {
+      alert(e.message ?? "Failed to update push notification settings");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   useEffect(() => {
     api.get<Chat[]>("/chats").then((r) => dispatch(setChats(r.data)));
@@ -109,6 +134,14 @@ export function Sidebar() {
               )}
             </div>
           )}
+          <button
+            onClick={togglePush}
+            disabled={pushBusy}
+            className="w-9 h-9 rounded-lg hover:bg-surface flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title={pushEnabled ? "Disable push notifications" : "Enable push notifications"}
+          >
+            {pushEnabled ? "🔔" : "🔕"}
+          </button>
           <button
             onClick={async () => {
               await api.post("/auth/logout");

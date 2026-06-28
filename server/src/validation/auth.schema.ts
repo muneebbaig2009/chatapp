@@ -5,11 +5,13 @@ export const registerSchema = z.object({
   username: z.string().min(3).max(20).regex(/^[a-zA-Z0-9_]+$/),
   displayName: z.string().min(1).max(50),
   password: z.string().min(8).max(100),
+  rememberMe: z.boolean().optional(),
 });
 
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  rememberMe: z.boolean().optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
