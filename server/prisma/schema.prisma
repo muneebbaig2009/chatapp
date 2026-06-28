@@ -34,6 +34,8 @@ model User {
   callsReceived    Call[]         @relation("CallsReceived")
   starredMessages  StarredMessage[]
   hiddenMessages   HiddenMessage[]
+  statuses         Status[]
+  statusViews      StatusView[]
 
   @@index([email])
   @@index([username])
@@ -227,4 +229,40 @@ enum CallStatus {
   ANSWERED
   REJECTED
   CANCELLED
+}
+
+// A 24h-expiring status/story post. Expiry is enforced at read time
+// (expiresAt filter) rather than by a cleanup job — no new infra.
+model Status {
+  id        String          @id @default(uuid())
+  userId    String
+  mediaUrl  String
+  mediaType StatusMediaType
+  caption   String?
+  createdAt DateTime        @default(now())
+  expiresAt DateTime
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views StatusView[]
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Per-viewer record so we can show "seen by N" and ring/unseen indicators.
+model StatusView {
+  id       String   @id @default(uuid())
+  statusId String
+  userId   String
+  viewedAt DateTime @default(now())
+
+  status Status @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([statusId, userId])
+}
+
+enum StatusMediaType {
+  IMAGE
+  VIDEO
 }

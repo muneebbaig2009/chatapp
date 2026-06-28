@@ -3,18 +3,21 @@ import { api } from "../api/client";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setChats, setActiveChat, upsertChat } from "../store/slices/chatSlice";
 import { setCallLog } from "../store/slices/callSlice";
+import { setStatusFeed } from "../store/slices/statusSlice";
 import { logout } from "../store/slices/authSlice";
 import { Avatar } from "./Avatar";
 import { CreateGroupModal } from "./CreateGroupModal";
 import { CallHistoryList } from "./CallHistoryList";
-import type { Chat, CallLogEntry, User } from "../types";
+import { StatusList } from "./StatusList";
+import type { Chat, CallLogEntry, StatusFeed, User } from "../types";
 
 export function Sidebar() {
   const dispatch = useAppDispatch();
   const { chats, activeChatId, onlineUsers } = useAppSelector((s) => s.chat);
   const callLog = useAppSelector((s) => s.calls.log);
+  const statusOthers = useAppSelector((s) => s.status.others);
   const me = useAppSelector((s) => s.auth.user);
-  const [activeTab, setActiveTab] = useState<"chats" | "calls">("chats");
+  const [activeTab, setActiveTab] = useState<"chats" | "calls" | "status">("chats");
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<User[]>([]);
@@ -22,6 +25,7 @@ export function Sidebar() {
   const [groupModalOpen, setGroupModalOpen] = useState(false);
 
   const missedCount = callLog.filter((c) => c.direction === "incoming" && c.status === "MISSED").length;
+  const hasUnseenStatus = statusOthers.some((g) => g.hasUnseen);
 
   useEffect(() => {
     api.get<Chat[]>("/chats").then((r) => dispatch(setChats(r.data)));
@@ -31,6 +35,10 @@ export function Sidebar() {
   // visible even while the Chats tab is active.
   useEffect(() => {
     api.get<CallLogEntry[]>("/calls").then((r) => dispatch(setCallLog(r.data)));
+  }, [dispatch]);
+
+  useEffect(() => {
+    api.get<StatusFeed>("/statuses").then((r) => dispatch(setStatusFeed(r.data)));
   }, [dispatch]);
 
   useEffect(() => {
@@ -136,6 +144,17 @@ export function Sidebar() {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setActiveTab("status")}
+          className={`flex-1 py-2.5 text-sm font-medium transition relative ${
+            activeTab === "status" ? "text-accent border-b-2 border-accent" : "text-muted hover:text-gray-200"
+          }`}
+        >
+          Status
+          {hasUnseenStatus && (
+            <span className="absolute top-2 right-1/4 translate-x-1/2 w-2 h-2 rounded-full bg-accent" />
+          )}
+        </button>
       </div>
 
       {activeTab === "chats" && searching && (
@@ -171,6 +190,8 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto">
         {activeTab === "calls" ? (
           <CallHistoryList />
+        ) : activeTab === "status" ? (
+          <StatusList />
         ) : (
           <>
             {chats.length === 0 && !searching && (

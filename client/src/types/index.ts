@@ -78,3 +78,27 @@ export interface CallLogEntry {
   createdAt: string;
   otherUser: { id: string; displayName: string; avatarUrl: string | null };
 }
+
+export type StatusMediaType = "IMAGE" | "VIDEO";
+
+export interface StatusEntry {
+  id: string;
+  mediaUrl: string;
+  mediaType: StatusMediaType;
+  caption: string | null;
+  createdAt: string;
+  expiresAt: string;
+  viewedByMe: boolean;
+  viewCount: number;
+}
+
+export interface StatusGroup {
+  user: { id: string; displayName: string; avatarUrl: string | null };
+  statuses: StatusEntry[];
+  hasUnseen?: boolean;
+}
+
+export interface StatusFeed {
+  mine: StatusGroup | null;
+  others: StatusGroup[];
+}

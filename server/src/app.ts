@@ -9,6 +9,7 @@ import chatRoutes from "./routes/chat.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import callRoutes from "./routes/call.routes.js";
 import messageRoutes from "./routes/message.routes.js";
+import statusRoutes from "./routes/status.routes.js";
 import { errorHandler } from "./middleware/error.js";
 
 export function createApp() {
@@ -28,6 +29,7 @@ export function createApp() {
   app.use("/api/chats", chatRoutes);
   app.use("/api/calls", callRoutes);
   app.use("/api/messages", messageRoutes);
+  app.use("/api/statuses", statusRoutes);
 
   app.use(errorHandler);
   return app;

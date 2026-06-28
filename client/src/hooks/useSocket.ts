@@ -7,6 +7,7 @@ import {
   addMessage, setTyping, setPresence, setChats, markRead, upsertChat, removeChat, updateMessage,
 } from "../store/slices/chatSlice";
 import { upsertCallLogEntry } from "../store/slices/callSlice";
+import { setStatusFeed } from "../store/slices/statusSlice";
 import type { Chat, CallLogEntry, Message } from "../types";
 
 // One shared socket for the whole app, established after login.
@@ -60,6 +61,12 @@ export function useSocket() {
     // Edited or deleted-for-everyone — both just replace the message in place.
     socket.on("message:edited", (msg: Message) => dispatch(updateMessage(msg)));
     socket.on("message:deleted", (msg: Message) => dispatch(updateMessage(msg)));
+    // A contact posted/removed a status. Grouping + unseen-ordering logic
+    // lives server-side, so just refetch rather than patching it locally.
+    const refetchStatuses = () =>
+      api.get("/statuses").then((r) => dispatch(setStatusFeed(r.data))).catch(() => {});
+    socket.on("status:new", refetchStatuses);
+    socket.on("status:deleted", refetchStatuses);
 
     return () => {
       socket.disconnect();
