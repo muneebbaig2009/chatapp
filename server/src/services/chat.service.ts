@@ -18,6 +18,22 @@ const chatWithMembersInclude = {
       },
     },
   },
+  pinnedMessage: {
+    include: {
+      sender: { select: { id: true, displayName: true, avatarUrl: true } },
+    },
+  },
+};
+
+// Shared include shape for message-returning endpoints (createMessage,
+// getMessages, and message.service.ts's edit/delete/forward actions) so the
+// frontend always gets the same nested shape regardless of which action
+// produced the message.
+export const messageInclude = {
+  sender: { select: { id: true, displayName: true, avatarUrl: true } },
+  reactions: true,
+  replyTo: { select: { id: true, content: true, senderId: true } },
+  receipts: true,
 };
 
 // Find existing 1-to-1 chat between two users, or create one.
@@ -228,14 +244,10 @@ export async function getMessages(
   return prisma.message.findMany({
     where: {
       chatId,
+      hiddenFor: { none: { userId } },
       ...(before ? { createdAt: { lt: new Date(before) } } : {}),
     },
-    include: {
-      sender: { select: { id: true, displayName: true, avatarUrl: true } },
-      reactions: true,
-      replyTo: { select: { id: true, content: true, senderId: true } },
-      receipts: true,
-    },
+    include: { ...messageInclude, starredBy: { where: { userId } } },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
@@ -265,16 +277,45 @@ export async function createMessage(
       fileSize: data.fileSize,
       replyToId: data.replyToId,
     },
-    include: {
-      sender: { select: { id: true, displayName: true, avatarUrl: true } },
-      reactions: true,
-    },
+    include: messageInclude,
   });
   await prisma.chat.update({
     where: { id: chatId },
     data: { updatedAt: new Date() },
   });
   return message;
+}
+
+// Pinning a message replaces any existing pin (one pinned message per chat).
+// Any member can pin/unpin in a direct chat; only admins can in a group.
+export async function pinMessage(userId: string, chatId: string, messageId: string) {
+  await assertPinPermission(userId, chatId);
+
+  const message = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!message || message.chatId !== chatId) throw new ApiError(404, "Message not found in this chat");
+  if (message.isDeleted) throw new ApiError(400, "Cannot pin a deleted message");
+
+  return prisma.chat.update({
+    where: { id: chatId },
+    data: { pinnedMessageId: messageId },
+    include: chatWithMembersInclude,
+  });
+}
+
+export async function unpinMessage(userId: string, chatId: string) {
+  await assertPinPermission(userId, chatId);
+  return prisma.chat.update({
+    where: { id: chatId },
+    data: { pinnedMessageId: null },
+    include: chatWithMembersInclude,
+  });
+}
+
+async function assertPinPermission(userId: string, chatId: string) {
+  const chat = await prisma.chat.findUnique({ where: { id: chatId } });
+  if (!chat) throw new ApiError(404, "Chat not found");
+  if (chat.isGroup) await assertAdmin(userId, chatId);
+  else await assertMember(userId, chatId);
 }
 
 export async function assertMember(userId: string, chatId: string) {

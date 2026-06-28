@@ -4,6 +4,7 @@ import { verifyAccessToken } from "../utils/jwt.js";
 import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 import * as chatService from "../services/chat.service.js";
+import * as callService from "../services/call.service.js";
 
 interface SocketUser {
   userId: string;
@@ -11,6 +12,24 @@ interface SocketUser {
 
 // Track which users are connected (userId -> set of socket ids)
 const online = new Map<string, Set<string>>();
+
+interface ActiveCall {
+  callId: string;
+  callerId: string;
+  calleeId: string;
+  answered: boolean;
+  startedAt: Date | null;
+}
+// Correlates the stateless signaling events below (which only carry
+// {toUserId}) with the Call DB row. Keyed by EITHER participant's userId;
+// both keys point to the same object so mutating it once (e.g. on accept)
+// is visible from either side's lookup.
+const activeCalls = new Map<string, ActiveCall>();
+
+function clearActiveCall(entry: ActiveCall) {
+  activeCalls.delete(entry.callerId);
+  activeCalls.delete(entry.calleeId);
+}
 
 let ioInstance: Server | null = null;
 
@@ -26,6 +45,26 @@ export function initSockets(httpServer: HttpServer) {
     cors: { origin: env.clientOrigin, credentials: true },
   });
   ioInstance = io;
+
+  // Finalizes whichever call `byUserId` is currently in, used by both an
+  // explicit call:end and a disconnect mid-call. If the call was never
+  // answered, the caller cancelling vs. the callee disconnecting/declining
+  // map to different statuses; an already-answered call just gets its
+  // duration recorded. No-ops if there's no matching active call (e.g. a
+  // duplicate/late event, or the other side already finalized it first).
+  async function finalizeActiveCall(byUserId: string) {
+    const entry = activeCalls.get(byUserId);
+    if (!entry) return;
+    clearActiveCall(entry);
+    const finalCall =
+      entry.answered && entry.startedAt
+        ? await callService.finalizeAnswered(entry.callId, entry.startedAt)
+        : byUserId === entry.callerId
+          ? await callService.markCancelled(entry.callId)
+          : await callService.markRejected(entry.callId);
+    io.to(`user:${entry.callerId}`).emit("call:logged", callService.toCallLogEntry(finalCall, entry.callerId));
+    io.to(`user:${entry.calleeId}`).emit("call:logged", callService.toCallLogEntry(finalCall, entry.calleeId));
+  }
 
   // Authenticate every socket connection using the access token.
   io.use((socket, next) => {
@@ -79,7 +118,6 @@ export function initSockets(httpServer: HttpServer) {
     );
 
     // Read receipt
-    // Read receipt
     socket.on("message:read", async ({ chatId, messageId }) => {
       await prisma.messageReceipt.upsert({
         where: { messageId_userId: { messageId, userId } },
@@ -106,13 +144,24 @@ export function initSockets(httpServer: HttpServer) {
 
     // WebRTC call signaling — this server only relays offers/answers/ICE
     // candidates between the two participants' personal rooms; it never
-    // inspects media itself.
+    // inspects media itself. It does persist a Call row per attempt so
+    // history/missed-call tracking works (see call.service.ts).
     socket.on("call:initiate", async ({ toUserId, chatId, callType, offer }) => {
       await chatService.assertMember(userId, chatId);
+      const prismaCallType = callType === "video" ? "VIDEO" : "VOICE";
+      const call = await callService.createPendingCall(userId, toUserId, chatId ?? null, prismaCallType);
+
       if (!online.has(toUserId)) {
+        const missed = await callService.markMissed(call.id);
+        socket.emit("call:logged", callService.toCallLogEntry(missed, userId));
         socket.emit("call:rejected", { fromUserId: toUserId, reason: "offline" });
         return;
       }
+
+      const entry: ActiveCall = { callId: call.id, callerId: userId, calleeId: toUserId, answered: false, startedAt: null };
+      activeCalls.set(userId, entry);
+      activeCalls.set(toUserId, entry);
+
       const caller = await prisma.user.findUnique({
         where: { id: userId },
         select: { id: true, displayName: true, avatarUrl: true },
@@ -125,11 +174,25 @@ export function initSockets(httpServer: HttpServer) {
       });
     });
 
-    socket.on("call:accept", ({ toUserId, answer }) => {
+    socket.on("call:accept", async ({ toUserId, answer }) => {
+      const entry = activeCalls.get(userId);
+      if (entry) {
+        const startedAt = new Date();
+        entry.answered = true;
+        entry.startedAt = startedAt;
+        await callService.markAnswered(entry.callId, startedAt);
+      }
       io.to(`user:${toUserId}`).emit("call:accepted", { fromUserId: userId, answer });
     });
 
-    socket.on("call:reject", ({ toUserId }) => {
+    socket.on("call:reject", async ({ toUserId }) => {
+      const entry = activeCalls.get(userId);
+      if (entry) {
+        clearActiveCall(entry);
+        const rejected = await callService.markRejected(entry.callId);
+        io.to(`user:${entry.callerId}`).emit("call:logged", callService.toCallLogEntry(rejected, entry.callerId));
+        io.to(`user:${entry.calleeId}`).emit("call:logged", callService.toCallLogEntry(rejected, entry.calleeId));
+      }
       io.to(`user:${toUserId}`).emit("call:rejected", { fromUserId: userId });
     });
 
@@ -137,7 +200,8 @@ export function initSockets(httpServer: HttpServer) {
       io.to(`user:${toUserId}`).emit("call:ice-candidate", { fromUserId: userId, candidate });
     });
 
-    socket.on("call:end", ({ toUserId }) => {
+    socket.on("call:end", async ({ toUserId }) => {
+      await finalizeActiveCall(userId);
       io.to(`user:${toUserId}`).emit("call:ended", { fromUserId: userId });
     });
 
@@ -151,6 +215,13 @@ export function initSockets(httpServer: HttpServer) {
           data: { isOnline: false, lastSeen: new Date() },
         });
         socket.broadcast.emit("presence:update", { userId, isOnline: false });
+
+        // If they were mid-call, finalize it so the activeCalls entry
+        // doesn't leak and the other side's history stays accurate.
+        const entry = activeCalls.get(userId);
+        const otherId = entry ? (entry.callerId === userId ? entry.calleeId : entry.callerId) : null;
+        await finalizeActiveCall(userId);
+        if (otherId) io.to(`user:${otherId}`).emit("call:ended", { fromUserId: userId });
       }
     });
   });

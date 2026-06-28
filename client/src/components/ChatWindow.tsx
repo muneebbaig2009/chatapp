@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { uploadToCloudinary } from "../api/cloudinary";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { setMessages } from "../store/slices/chatSlice";
+import { setMessages, updateMessage, removeMessageLocal, upsertChat } from "../store/slices/chatSlice";
 import { useSocketRef } from "../hooks/SocketContext";
 import { useCall } from "../hooks/CallContext";
 import { MessageBubble } from "./MessageBubble";
 import { Avatar } from "./Avatar";
 import { GroupInfoModal } from "./GroupInfoModal";
-import type { Message } from "../types";
+import { ForwardMessageModal } from "./ForwardMessageModal";
+import type { Chat, Message } from "../types";
 
 type MediaType = "IMAGE" | "VIDEO" | "AUDIO" | "VOICE" | "FILE";
 
@@ -44,6 +45,8 @@ export function ChatWindow() {
   const [dragOver, setDragOver] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,6 +70,14 @@ export function ChatWindow() {
   const title = chat?.isGroup ? chat.name ?? "Group" : other?.user?.displayName ?? "";
   const online = other ? onlineUsers[other.userId] : undefined;
   const someoneTyping = activeChatId ? (typing[activeChatId]?.length ?? 0) > 0 : false;
+  const isAdmin = !!chat?.members.find((m) => m.userId === me?.id)?.isAdmin;
+
+  // Reset per-chat composer state (edit/forward) whenever the active chat changes.
+  useEffect(() => {
+    setEditingMessage(null);
+    setForwardingMessage(null);
+    setDraft("");
+  }, [activeChatId]);
 
   // Load history + join the chat room when switching chats.
   useEffect(() => {
@@ -196,6 +207,11 @@ export function ChatWindow() {
     setDraft("");
   }
 
+  function handleSubmit() {
+    if (editingMessage) saveEdit();
+    else send();
+  }
+
   function onType(v: string) {
     setDraft(v);
     if (!activeChatId) return;
@@ -214,6 +230,72 @@ export function ChatWindow() {
       { id: other.userId, displayName: other.user.displayName, avatarUrl: other.user.avatarUrl },
       callType,
     );
+  }
+
+  function startEdit(message: Message) {
+    setEditingMessage(message);
+    setDraft(message.content ?? "");
+  }
+
+  function cancelEdit() {
+    setEditingMessage(null);
+    setDraft("");
+  }
+
+  async function saveEdit() {
+    if (!editingMessage) return;
+    const content = draft.trim();
+    if (!content) return;
+    try {
+      const { data } = await api.patch<Message>(`/messages/${editingMessage.id}`, { content });
+      dispatch(updateMessage(data));
+      setEditingMessage(null);
+      setDraft("");
+    } catch {
+      // leave the draft in place so the user can retry
+    }
+  }
+
+  async function deleteForMe(message: Message) {
+    try {
+      await api.delete(`/messages/${message.id}/me`);
+      dispatch(removeMessageLocal({ chatId: message.chatId, messageId: message.id }));
+    } catch {
+      // no-op — leave the message visible if the request failed
+    }
+  }
+
+  async function deleteForEveryone(message: Message) {
+    try {
+      const { data } = await api.delete<Message>(`/messages/${message.id}`);
+      dispatch(updateMessage(data));
+    } catch {
+      // no-op
+    }
+  }
+
+  async function toggleStar(message: Message) {
+    try {
+      const { data } = await api.post<{ starred: boolean }>(`/messages/${message.id}/star`);
+      dispatch(updateMessage({
+        ...message,
+        starredBy: data.starred && me ? [{ userId: me.id }] : [],
+      }));
+    } catch {
+      // no-op
+    }
+  }
+
+  async function togglePin(message: Message) {
+    if (!chat) return;
+    try {
+      const { data } = chat.pinnedMessageId === message.id
+        ? await api.delete<Chat>(`/chats/${chat.id}/pin`)
+        : await api.post<Chat>(`/chats/${chat.id}/pin`, { messageId: message.id });
+      dispatch(upsertChat(data));
+    } catch {
+      // no-op
+    }
   }
 
   if (!chat) {
@@ -287,16 +369,54 @@ export function ChatWindow() {
         <GroupInfoModal chat={chat} onClose={() => setGroupInfoOpen(false)} />
       )}
 
+      {forwardingMessage && (
+        <ForwardMessageModal message={forwardingMessage} onClose={() => setForwardingMessage(null)} />
+      )}
+
+      {chat.pinnedMessage && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-panel border-b border-surface text-sm">
+          <span className="text-accent shrink-0">📌</span>
+          <span className="flex-1 min-w-0 truncate text-muted">
+            {chat.pinnedMessage.isDeleted
+              ? "This message was deleted"
+              : chat.pinnedMessage.content ?? "Attachment"}
+          </span>
+          {(!chat.isGroup || isAdmin) && (
+            <button
+              onClick={() => togglePin(chat.pinnedMessage!)}
+              className="text-muted hover:text-gray-200 text-xs shrink-0"
+              title="Unpin"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto py-4 space-y-1.5">
-        {chatMessages.map((m) => (
-          <MessageBubble
-            key={m.id}
-            message={m}
-            mine={m.senderId === me?.id}
-            readByOther={!!m.receipts?.some((r) => r.userId !== me?.id)}
-            showSender={chat.isGroup && m.senderId !== me?.id}
-          />
-        ))}
+        {chatMessages.map((m) => {
+          const isMine = m.senderId === me?.id;
+          const canDeleteForEveryone = !m.isDeleted && (isMine || (chat.isGroup && isAdmin));
+          const canPin = !m.isDeleted && (!chat.isGroup || isAdmin);
+          const starred = !!m.starredBy?.some((s) => s.userId === me?.id);
+          return (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              mine={isMine}
+              readByOther={!!m.receipts?.some((r) => r.userId !== me?.id)}
+              showSender={chat.isGroup && m.senderId !== me?.id}
+              starred={starred}
+              isPinned={chat.pinnedMessageId === m.id}
+              onEdit={isMine && !m.isDeleted && m.type === "TEXT" ? () => startEdit(m) : undefined}
+              onDeleteForMe={!m.isDeleted ? () => deleteForMe(m) : undefined}
+              onDeleteForEveryone={canDeleteForEveryone ? () => deleteForEveryone(m) : undefined}
+              onForward={!m.isDeleted ? () => setForwardingMessage(m) : undefined}
+              onToggleStar={!m.isDeleted ? () => toggleStar(m) : undefined}
+              onTogglePin={canPin ? () => togglePin(m) : undefined}
+            />
+          );
+        })}
         {chatPendingUploads.map((u) => (
           <PendingBubble key={u.id} item={u} />
         ))}
@@ -311,6 +431,12 @@ export function ChatWindow() {
       </div>
 
       <footer className="p-3 border-t border-surface bg-panel">
+        {editingMessage && (
+          <div className="flex items-center gap-2 px-2 pb-2 text-xs text-muted">
+            <span className="flex-1">✏️ Editing message</span>
+            <button onClick={cancelEdit} className="hover:text-gray-200">✕ Cancel</button>
+          </div>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -342,7 +468,8 @@ export function ChatWindow() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-9 h-9 shrink-0 rounded-full hover:bg-surface text-lg flex items-center justify-center transition"
+              disabled={!!editingMessage}
+              className="w-9 h-9 shrink-0 rounded-full hover:bg-surface text-lg flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed"
               title="Attach file"
             >📎</button>
             <textarea
@@ -350,21 +477,23 @@ export function ChatWindow() {
               value={draft}
               onChange={(e) => onType(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
+                if (e.key === "Escape" && editingMessage) cancelEdit();
               }}
-              placeholder="Type a message"
+              placeholder={editingMessage ? "Edit message" : "Type a message"}
               className="flex-1 resize-none bg-ink border border-surface rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 max-h-32"
             />
             <button
               type="button"
               onClick={startRecording}
-              className="w-9 h-9 shrink-0 rounded-full hover:bg-surface text-lg flex items-center justify-center transition"
+              disabled={!!editingMessage}
+              className="w-9 h-9 shrink-0 rounded-full hover:bg-surface text-lg flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed"
               title="Record voice note"
             >🎤</button>
             <button
-              onClick={send}
+              onClick={handleSubmit}
               className="w-11 h-11 shrink-0 rounded-full bg-accent hover:bg-accent-dim text-ink flex items-center justify-center text-lg transition"
-            >➤</button>
+            >{editingMessage ? "✓" : "➤"}</button>
           </div>
         )}
       </footer>

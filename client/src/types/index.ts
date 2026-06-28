@@ -28,10 +28,12 @@ export interface Message {
   createdAt: string;
   isEdited?: boolean;
   isDeleted?: boolean;
+  forwardedFromId?: string | null;
   sender?: { id: string; displayName: string; avatarUrl: string | null };
   reactions?: Reaction[];
   replyTo?: { id: string; content: string | null; senderId: string } | null;
   receipts?: { userId: string; status: string }[];
+  starredBy?: { userId: string }[];
 }
 
 export interface ChatMemberWithUser {
@@ -49,6 +51,8 @@ export interface Chat {
   iconUrl: string | null;
   members: ChatMemberWithUser[];
   messages?: Message[];
+  pinnedMessageId?: string | null;
+  pinnedMessage?: Message | null;
 }
 
 export type CallType = "voice" | "video";
@@ -57,4 +61,20 @@ export interface CallPeer {
   id: string;
   displayName: string;
   avatarUrl: string | null;
+}
+
+export type CallLogStatus = "MISSED" | "ANSWERED" | "REJECTED" | "CANCELLED";
+export type CallLogType = "VOICE" | "VIDEO";
+
+export interface CallLogEntry {
+  id: string;
+  chatId: string | null;
+  callType: CallLogType;
+  status: CallLogStatus;
+  direction: "outgoing" | "incoming";
+  startedAt: string | null;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  createdAt: string;
+  otherUser: { id: string; displayName: string; avatarUrl: string | null };
 }

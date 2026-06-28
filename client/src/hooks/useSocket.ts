@@ -4,9 +4,10 @@ import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { store } from "../store";
 import { api } from "../api/client";
 import {
-  addMessage, setTyping, setPresence, setChats, markRead, upsertChat, removeChat,
+  addMessage, setTyping, setPresence, setChats, markRead, upsertChat, removeChat, updateMessage,
 } from "../store/slices/chatSlice";
-import type { Chat } from "../types";
+import { upsertCallLogEntry } from "../store/slices/callSlice";
+import type { Chat, CallLogEntry, Message } from "../types";
 
 // One shared socket for the whole app, established after login.
 export function useSocket() {
@@ -53,6 +54,12 @@ export function useSocket() {
       if (stillMember) dispatch(upsertChat(chat));
       else dispatch(removeChat(chat.id));
     });
+    // A call reached a terminal state (missed/answered-and-ended/rejected/
+    // cancelled) — refresh the Calls tab without a manual refetch.
+    socket.on("call:logged", (entry: CallLogEntry) => dispatch(upsertCallLogEntry(entry)));
+    // Edited or deleted-for-everyone — both just replace the message in place.
+    socket.on("message:edited", (msg: Message) => dispatch(updateMessage(msg)));
+    socket.on("message:deleted", (msg: Message) => dispatch(updateMessage(msg)));
 
     return () => {
       socket.disconnect();

@@ -48,6 +48,21 @@ const chatSlice = createSlice({
         state.messages[m.chatId] = [...list, m];
       }
     },
+    // In-place update (edit, delete-for-everyone, star toggle) — replaces by id.
+    updateMessage(state, action: PayloadAction<Message>) {
+      const m = action.payload;
+      const list = state.messages[m.chatId];
+      if (!list) return;
+      const i = list.findIndex((x) => x.id === m.id);
+      if (i >= 0) list[i] = m;
+    },
+    // Delete-for-me — removes the message from local state only.
+    removeMessageLocal(state, action: PayloadAction<{ chatId: string; messageId: string }>) {
+      const { chatId, messageId } = action.payload;
+      const list = state.messages[chatId];
+      if (!list) return;
+      state.messages[chatId] = list.filter((m) => m.id !== messageId);
+    },
     setTyping(state, action: PayloadAction<{ chatId: string; userId: string; typing: boolean }>) {
       const { chatId, userId, typing } = action.payload;
       const cur = state.typing[chatId] ?? [];
@@ -74,6 +89,6 @@ const chatSlice = createSlice({
 
 export const {
   setChats, upsertChat, removeChat, setActiveChat, setMessages,
-  addMessage, setTyping, setPresence, markRead,
+  addMessage, updateMessage, removeMessageLocal, setTyping, setPresence, markRead,
 } = chatSlice.actions;
 export default chatSlice.reducer;

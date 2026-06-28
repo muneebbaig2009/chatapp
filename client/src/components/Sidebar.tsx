@@ -2,23 +2,35 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setChats, setActiveChat, upsertChat } from "../store/slices/chatSlice";
+import { setCallLog } from "../store/slices/callSlice";
 import { logout } from "../store/slices/authSlice";
 import { Avatar } from "./Avatar";
 import { CreateGroupModal } from "./CreateGroupModal";
-import type { Chat, User } from "../types";
+import { CallHistoryList } from "./CallHistoryList";
+import type { Chat, CallLogEntry, User } from "../types";
 
 export function Sidebar() {
   const dispatch = useAppDispatch();
   const { chats, activeChatId, onlineUsers } = useAppSelector((s) => s.chat);
+  const callLog = useAppSelector((s) => s.calls.log);
   const me = useAppSelector((s) => s.auth.user);
+  const [activeTab, setActiveTab] = useState<"chats" | "calls">("chats");
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<User[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
 
+  const missedCount = callLog.filter((c) => c.direction === "incoming" && c.status === "MISSED").length;
+
   useEffect(() => {
     api.get<Chat[]>("/chats").then((r) => dispatch(setChats(r.data)));
+  }, [dispatch]);
+
+  // Fetched eagerly (not lazily on tab switch) so the missed-call badge is
+  // visible even while the Chats tab is active.
+  useEffect(() => {
+    api.get<CallLogEntry[]>("/calls").then((r) => dispatch(setCallLog(r.data)));
   }, [dispatch]);
 
   useEffect(() => {
@@ -59,34 +71,36 @@ export function Sidebar() {
           <span className="font-semibold text-sm">{me?.displayName}</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="relative">
-            <button
-              onClick={() => setMenuOpen((o) => !o)}
-              className="w-9 h-9 rounded-lg hover:bg-surface flex items-center justify-center text-lg"
-              title="New chat or group"
-            >
-              ＋
-            </button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-0" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 mt-1 w-44 bg-panel border border-surface rounded-lg shadow-lg z-10 overflow-hidden">
-                  <button
-                    onClick={() => { setSearching(true); setMenuOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface"
-                  >
-                    💬 New chat
-                  </button>
-                  <button
-                    onClick={() => { setGroupModalOpen(true); setMenuOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface"
-                  >
-                    👥 New group
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          {activeTab === "chats" && (
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                className="w-9 h-9 rounded-lg hover:bg-surface flex items-center justify-center text-lg"
+                title="New chat or group"
+              >
+                ＋
+              </button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-0" onClick={() => setMenuOpen(false)} />
+                  <div className="absolute right-0 mt-1 w-44 bg-panel border border-surface rounded-lg shadow-lg z-10 overflow-hidden">
+                    <button
+                      onClick={() => { setSearching(true); setMenuOpen(false); }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-surface"
+                    >
+                      💬 New chat
+                    </button>
+                    <button
+                      onClick={() => { setGroupModalOpen(true); setMenuOpen(false); }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-surface"
+                    >
+                      👥 New group
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           <button
             onClick={async () => {
               await api.post("/auth/logout");
@@ -100,7 +114,31 @@ export function Sidebar() {
         </div>
       </header>
 
-      {searching && (
+      <div className="flex border-b border-surface">
+        <button
+          onClick={() => setActiveTab("chats")}
+          className={`flex-1 py-2.5 text-sm font-medium transition ${
+            activeTab === "chats" ? "text-accent border-b-2 border-accent" : "text-muted hover:text-gray-200"
+          }`}
+        >
+          Chats
+        </button>
+        <button
+          onClick={() => setActiveTab("calls")}
+          className={`flex-1 py-2.5 text-sm font-medium transition relative ${
+            activeTab === "calls" ? "text-accent border-b-2 border-accent" : "text-muted hover:text-gray-200"
+          }`}
+        >
+          Calls
+          {missedCount > 0 && (
+            <span className="absolute top-1.5 right-1/4 translate-x-1/2 bg-red-500 text-white text-[10px] leading-none rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+              {missedCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === "chats" && searching && (
         <div className="p-3 border-b border-surface">
           <input
             autoFocus
@@ -131,40 +169,46 @@ export function Sidebar() {
       )}
 
       <div className="flex-1 overflow-y-auto">
-        {chats.length === 0 && !searching && (
-          <p className="text-sm text-muted text-center mt-10 px-6">
-            No conversations yet. Tap ＋ to start one.
-          </p>
+        {activeTab === "calls" ? (
+          <CallHistoryList />
+        ) : (
+          <>
+            {chats.length === 0 && !searching && (
+              <p className="text-sm text-muted text-center mt-10 px-6">
+                No conversations yet. Tap ＋ to start one.
+              </p>
+            )}
+            {chats.map((chat) => {
+              const { name, userId } = chatTitle(chat);
+              const last = chat.messages?.[0];
+              const online = userId ? onlineUsers[userId] : undefined;
+              return (
+                <button
+                  key={chat.id}
+                  onClick={() => dispatch(setActiveChat(chat.id))}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface transition ${
+                    activeChatId === chat.id ? "bg-surface" : ""
+                  }`}
+                >
+                  <Avatar
+                    name={name}
+                    src={chat.iconUrl}
+                    size={44}
+                    online={online}
+                    isGroup={chat.isGroup}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-sm truncate">{name}</div>
+                    <div className="text-xs text-muted truncate">
+                      {last?.content ??
+                        (last ? "📎 Attachment" : "No messages yet")}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </>
         )}
-        {chats.map((chat) => {
-          const { name, userId } = chatTitle(chat);
-          const last = chat.messages?.[0];
-          const online = userId ? onlineUsers[userId] : undefined;
-          return (
-            <button
-              key={chat.id}
-              onClick={() => dispatch(setActiveChat(chat.id))}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface transition ${
-                activeChatId === chat.id ? "bg-surface" : ""
-              }`}
-            >
-              <Avatar
-                name={name}
-                src={chat.iconUrl}
-                size={44}
-                online={online}
-                isGroup={chat.isGroup}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-sm truncate">{name}</div>
-                <div className="text-xs text-muted truncate">
-                  {last?.content ??
-                    (last ? "📎 Attachment" : "No messages yet")}
-                </div>
-              </div>
-            </button>
-          );
-        })}
       </div>
 
       {groupModalOpen && <CreateGroupModal onClose={() => setGroupModalOpen(false)} />}

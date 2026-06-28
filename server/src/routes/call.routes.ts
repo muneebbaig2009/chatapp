@@ -5,4 +5,5 @@ import { requireAuth } from "../middleware/auth.js";
 const router = Router();
 router.use(requireAuth);
 router.get("/ice-servers", ctrl.getIceServers);
+router.get("/", ctrl.getCallHistory);
 export default router;

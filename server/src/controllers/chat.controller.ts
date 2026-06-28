@@ -92,3 +92,17 @@ export const updateGroup = asyncHandler(async (req: AuthRequest, res: Response) 
   notifyGroupUpdate(chat);
   res.json(chat);
 });
+
+export const pinMessage = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { messageId } = req.body ?? {};
+  if (typeof messageId !== "string") throw new ApiError(400, "messageId is required");
+  const chat = await chatService.pinMessage(req.userId!, String(req.params.chatId), messageId);
+  notifyGroupUpdate(chat);
+  res.json(chat);
+});
+
+export const unpinMessage = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const chat = await chatService.unpinMessage(req.userId!, String(req.params.chatId));
+  notifyGroupUpdate(chat);
+  res.json(chat);
+});

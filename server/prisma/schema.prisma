@@ -30,6 +30,10 @@ model User {
   reactions        Reaction[]
   blockedUsers     BlockedUser[]  @relation("Blocker")
   blockedBy        BlockedUser[]  @relation("Blocked")
+  callsMade        Call[]         @relation("CallsMade")
+  callsReceived    Call[]         @relation("CallsReceived")
+  starredMessages  StarredMessage[]
+  hiddenMessages   HiddenMessage[]
 
   @@index([email])
   @@index([username])
@@ -48,16 +52,18 @@ model RefreshToken {
 
 // A Chat is either a 1-to-1 conversation or a group.
 model Chat {
-  id          String   @id @default(uuid())
-  isGroup     Boolean  @default(false)
-  name        String?  // group name (null for 1-to-1)
-  description String?
-  iconUrl     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(uuid())
+  isGroup         Boolean  @default(false)
+  name            String?  // group name (null for 1-to-1)
+  description     String?
+  iconUrl         String?
+  pinnedMessageId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  members  ChatMember[]
-  messages Message[]
+  members       ChatMember[]
+  messages      Message[]
+  pinnedMessage Message?     @relation("PinnedMessage", fields: [pinnedMessageId], references: [id], onDelete: SetNull)
 
   @@index([isGroup])
 }
@@ -77,26 +83,32 @@ model ChatMember {
 }
 
 model Message {
-  id          String        @id @default(uuid())
-  chatId      String
-  senderId    String
-  content     String?
-  type        MessageType   @default(TEXT)
-  fileUrl     String?
-  fileName    String?
-  fileSize    Int?
-  replyToId   String?
-  isEdited    Boolean       @default(false)
-  isDeleted   Boolean       @default(false)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id              String        @id @default(uuid())
+  chatId          String
+  senderId        String
+  content         String?
+  type            MessageType   @default(TEXT)
+  fileUrl         String?
+  fileName        String?
+  fileSize        Int?
+  replyToId       String?
+  forwardedFromId String?
+  isEdited        Boolean       @default(false)
+  isDeleted       Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
-  chat     Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  sender   User       @relation("SentMessages", fields: [senderId], references: [id])
-  replyTo  Message?   @relation("Replies", fields: [replyToId], references: [id])
-  replies  Message[]  @relation("Replies")
-  reactions Reaction[]
-  receipts MessageReceipt[]
+  chat            Chat             @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender          User             @relation("SentMessages", fields: [senderId], references: [id])
+  replyTo         Message?         @relation("Replies", fields: [replyToId], references: [id])
+  replies         Message[]        @relation("Replies")
+  forwardedFrom   Message?         @relation("Forwards", fields: [forwardedFromId], references: [id])
+  forwardedCopies Message[]        @relation("Forwards")
+  reactions       Reaction[]
+  receipts        MessageReceipt[]
+  starredBy       StarredMessage[]
+  hiddenFor       HiddenMessage[]
+  pinnedInChats   Chat[]           @relation("PinnedMessage")
 
   @@index([chatId, createdAt])
   @@index([senderId])
@@ -141,6 +153,35 @@ model Reaction {
   @@unique([messageId, userId, emoji])
 }
 
+// Per-user "starred" flag — independent of the message itself.
+model StarredMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([messageId])
+}
+
+// Per-user "deleted for me" — hides a message from this user's view only,
+// independent of the message's real isDeleted ("deleted for everyone") state.
+model HiddenMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([messageId])
+}
+
 model BlockedUser {
   id        String   @id @default(uuid())
   blockerId String
@@ -151,4 +192,39 @@ model BlockedUser {
   blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
+}
+
+// A logged call attempt between two users (1-to-1 only). chatId is a plain
+// scalar, not a relation — call history is a log/audit trail and should
+// survive chat deletion.
+model Call {
+  id              String     @id @default(uuid())
+  callerId        String
+  calleeId        String
+  chatId          String?
+  callType        CallType
+  status          CallStatus @default(MISSED)
+  startedAt       DateTime?
+  endedAt         DateTime?
+  durationSeconds Int?
+  createdAt       DateTime   @default(now())
+
+  caller User @relation("CallsMade", fields: [callerId], references: [id], onDelete: Cascade)
+  callee User @relation("CallsReceived", fields: [calleeId], references: [id], onDelete: Cascade)
+
+  @@index([callerId])
+  @@index([calleeId])
+  @@index([createdAt])
+}
+
+enum CallType {
+  VOICE
+  VIDEO
+}
+
+enum CallStatus {
+  MISSED
+  ANSWERED
+  REJECTED
+  CANCELLED
 }
