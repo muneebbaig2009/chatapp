@@ -2,10 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root { height: 100%; }
-body { @apply bg-ink text-gray-100 font-sans antialiased; }
+/*
+ * HAMNAVA brand palette as CSS variables, RGB channels space-separated
+ * (no rgb() wrapper) so Tailwind's `rgb(var(--x) / <alpha-value>)` color
+ * functions (see tailwind.config.js) can apply opacity modifiers like
+ * bg-ink/80.
+ *
+ * :root holds the dark (default) values. .light overrides them. accent,
+ * accent-dim and accent-fg are intentionally identical in both blocks —
+ * the brand purple and the dark text that sits on top of it don't change
+ * with theme, only the surfaces around them do.
+ */
+:root {
+  --color-ink: 19 19 43;          /* #13132b deep indigo-navy (app shell, inputs, full-screen overlays) */
+  --color-panel: 25 25 51;        /* #191933 sidebar / panels */
+  --color-surface: 35 35 71;      /* #232347 raised surfaces */
+  --color-bubble: 42 42 82;       /* #2a2a52 received bubble */
+  --color-muted: 154 147 192;     /* #9a93c0 secondary text */
+  --color-fg: 241 240 250;        /* #f1f0fa primary text/icons on ink/panel/surface/bubble */
+  --color-accent: 123 97 255;     /* #7b61ff HAMNAVA brand purple (sent bubbles, buttons) */
+  --color-accent-dim: 99 71 224;  /* #6347e0 */
+  --color-accent-fg: 19 19 43;    /* #13132b text/icons sitting on the accent — stays dark in both themes */
+  --color-danger: 239 68 68;      /* #ef4444 destructive actions, error text */
+  --color-danger-dim: 220 38 38;  /* #dc2626 */
+}
 
-/* Thin teal scrollbar */
+.light {
+  --color-ink: 243 241 251;       /* #f3f1fb */
+  --color-panel: 255 255 255;     /* #ffffff */
+  --color-surface: 231 227 247;   /* #e7e3f7 */
+  --color-bubble: 236 233 249;    /* #ece9f9 */
+  --color-muted: 107 99 148;      /* #6b6394 */
+  --color-fg: 29 27 58;           /* #1d1b3a */
+  --color-accent: 123 97 255;
+  --color-accent-dim: 99 71 224;
+  --color-accent-fg: 19 19 43;
+  --color-danger: 220 38 38;      /* #dc2626 */
+  --color-danger-dim: 185 28 28;  /* #b91c1c */
+}
+
+html, body, #root { height: 100%; }
+body { @apply bg-ink text-fg font-sans antialiased transition-colors duration-150; }
+
+/* Thin scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { @apply bg-surface rounded; }
 ::-webkit-scrollbar-track { background: transparent; }

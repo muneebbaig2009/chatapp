@@ -14,7 +14,7 @@ export function InCallScreen({ call }: { call: CallContextValue }) {
   const statusLabel = status === "active" ? "On call" : "Connecting…";
 
   return (
-    <div className="fixed inset-0 z-30 bg-ink flex flex-col text-gray-100">
+    <div className="fixed inset-0 z-30 bg-ink flex flex-col text-fg">
       <div className="px-4 py-3 text-center text-sm text-muted border-b border-surface">
         {peer.displayName} · {statusLabel}
       </div>
@@ -22,7 +22,7 @@ export function InCallScreen({ call }: { call: CallContextValue }) {
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         {isVideo ? (
           <>
-            <StreamPlayer stream={remoteStream} className="w-full h-full object-cover bg-black" />
+            <StreamPlayer stream={remoteStream} className="w-full h-full object-cover bg-ink" />
             <div className="absolute bottom-4 right-4 w-32 h-44 rounded-xl overflow-hidden border border-surface shadow-lg bg-panel">
               <StreamPlayer stream={localStream} muted className="w-full h-full object-cover" />
             </div>
@@ -58,7 +58,7 @@ export function InCallScreen({ call }: { call: CallContextValue }) {
         )}
         <button
           onClick={hangUp}
-          className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-xl transition"
+          className="w-14 h-14 rounded-full bg-danger hover:bg-danger-dim flex items-center justify-center text-xl transition"
           title="Hang up"
         >
           ✕

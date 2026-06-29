@@ -7,7 +7,7 @@ export function OutgoingCallScreen({ call }: { call: CallContextValue }) {
   if (!peer) return null;
 
   return (
-    <div className="fixed inset-0 z-30 bg-ink flex flex-col items-center justify-center text-gray-100 gap-6">
+    <div className="fixed inset-0 z-30 bg-ink flex flex-col items-center justify-center text-fg gap-6">
       <Avatar name={peer.displayName} src={peer.avatarUrl} size={120} />
       <div className="text-center">
         <div className="text-xl font-semibold">{peer.displayName}</div>
@@ -17,7 +17,7 @@ export function OutgoingCallScreen({ call }: { call: CallContextValue }) {
       </div>
       <button
         onClick={hangUp}
-        className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-2xl transition"
+        className="w-16 h-16 rounded-full bg-danger hover:bg-danger-dim flex items-center justify-center text-2xl transition"
         title="Cancel"
       >
         ✕

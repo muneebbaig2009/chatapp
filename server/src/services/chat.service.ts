@@ -14,6 +14,8 @@ const chatWithMembersInclude = {
           avatarUrl: true,
           isOnline: true,
           lastSeen: true,
+          showOnlineStatus: true,
+          showLastSeen: true,
         },
       },
     },
@@ -24,6 +26,40 @@ const chatWithMembersInclude = {
     },
   },
 };
+
+interface PrivacyAwareMember {
+  userId: string;
+  user: {
+    isOnline: boolean;
+    lastSeen: Date;
+    showOnlineStatus?: boolean;
+    showLastSeen?: boolean;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+// Applies each OTHER member's own privacy preferences before handing chat
+// data to `viewerId` — these settings only affect how YOU appear to
+// others, never the viewer's own view of their own row. The raw
+// preference fields are stripped afterward either way; a viewer reads
+// their own settings via /users/me, not via chat member lists.
+function sanitizeChatForViewer<T extends { members: PrivacyAwareMember[] }>(chat: T, viewerId: string): T {
+  for (const member of chat.members) {
+    const u = member.user;
+    if (member.userId !== viewerId) {
+      if (!u.showOnlineStatus) u.isOnline = false;
+      if (!u.showLastSeen) u.lastSeen = null as unknown as Date;
+    }
+    delete u.showOnlineStatus;
+    delete u.showLastSeen;
+  }
+  return chat;
+}
+
+function sanitizeChatsForViewer<T extends { members: PrivacyAwareMember[] }>(chats: T[], viewerId: string): T[] {
+  return chats.map((c) => sanitizeChatForViewer(c, viewerId));
+}
 
 // Shared include shape for message-returning endpoints (createMessage,
 // getMessages, and message.service.ts's edit/delete/forward actions) so the
@@ -57,19 +93,20 @@ export async function getOrCreateDirectChat(
     },
     include: chatWithMembersInclude,
   });
-  if (existing) return existing;
+  if (existing) return sanitizeChatForViewer(existing, userId);
 
-  return prisma.chat.create({
+  const created = await prisma.chat.create({
     data: {
       isGroup: false,
       members: { create: [{ userId }, { userId: otherUserId }] },
     },
     include: chatWithMembersInclude,
   });
+  return sanitizeChatForViewer(created, userId);
 }
 
 export async function listChats(userId: string) {
-  return prisma.chat.findMany({
+  const chats = await prisma.chat.findMany({
     where: { members: { some: { userId } } },
     include: {
       ...chatWithMembersInclude,
@@ -77,6 +114,7 @@ export async function listChats(userId: string) {
     },
     orderBy: { updatedAt: "desc" },
   });
+  return sanitizeChatsForViewer(chats, userId);
 }
 
 // Create a new group chat. The creator becomes an admin; everyone else
@@ -102,7 +140,7 @@ export async function createGroupChat(
   if (users.length !== uniqueMemberIds.length)
     throw new ApiError(404, "One or more users not found");
 
-  return prisma.chat.create({
+  const created = await prisma.chat.create({
     data: {
       isGroup: true,
       name: trimmedName,
@@ -115,6 +153,7 @@ export async function createGroupChat(
     },
     include: chatWithMembersInclude,
   });
+  return sanitizeChatForViewer(created, creatorId);
 }
 
 // Add new members to an existing group (admin only).
@@ -150,10 +189,11 @@ export async function addMembers(
     data: toAdd.map((userId) => ({ chatId, userId, isAdmin: false })),
   });
 
-  return prisma.chat.findUniqueOrThrow({
+  const updated = await prisma.chat.findUniqueOrThrow({
     where: { id: chatId },
     include: chatWithMembersInclude,
   });
+  return sanitizeChatForViewer(updated, requesterId);
 }
 
 // Remove a member from a group. Admins can remove anyone; a non-admin can
@@ -175,10 +215,11 @@ export async function removeMember(
     where: { chatId_userId: { chatId, userId: targetUserId } },
   });
 
-  return prisma.chat.findUniqueOrThrow({
+  const updated = await prisma.chat.findUniqueOrThrow({
     where: { id: chatId },
     include: chatWithMembersInclude,
   });
+  return sanitizeChatForViewer(updated, requesterId);
 }
 
 // Promote or demote a member (admin only).
@@ -200,10 +241,11 @@ export async function setMemberAdmin(
     data: { isAdmin },
   });
 
-  return prisma.chat.findUniqueOrThrow({
+  const updated = await prisma.chat.findUniqueOrThrow({
     where: { id: chatId },
     include: chatWithMembersInclude,
   });
+  return sanitizeChatForViewer(updated, requesterId);
 }
 
 // Update group metadata (admin only).
@@ -227,11 +269,12 @@ export async function updateGroup(
   if (data.description !== undefined) update.description = data.description;
   if (data.iconUrl !== undefined) update.iconUrl = data.iconUrl;
 
-  return prisma.chat.update({
+  const updated = await prisma.chat.update({
     where: { id: chatId },
     data: update,
     include: chatWithMembersInclude,
   });
+  return sanitizeChatForViewer(updated, requesterId);
 }
 
 export async function getMessages(
@@ -295,20 +338,22 @@ export async function pinMessage(userId: string, chatId: string, messageId: stri
   if (!message || message.chatId !== chatId) throw new ApiError(404, "Message not found in this chat");
   if (message.isDeleted) throw new ApiError(400, "Cannot pin a deleted message");
 
-  return prisma.chat.update({
+  const updated = await prisma.chat.update({
     where: { id: chatId },
     data: { pinnedMessageId: messageId },
     include: chatWithMembersInclude,
   });
+  return sanitizeChatForViewer(updated, userId);
 }
 
 export async function unpinMessage(userId: string, chatId: string) {
   await assertPinPermission(userId, chatId);
-  return prisma.chat.update({
+  const updated = await prisma.chat.update({
     where: { id: chatId },
     data: { pinnedMessageId: null },
     include: chatWithMembersInclude,
   });
+  return sanitizeChatForViewer(updated, userId);
 }
 
 async function assertPinPermission(userId: string, chatId: string) {

@@ -46,7 +46,7 @@ export function ForwardMessageModal({ message, onClose }: { message: Message; on
       >
         <header className="px-4 py-3 border-b border-surface flex items-center justify-between">
           <h2 className="font-semibold text-sm">Forward message</h2>
-          <button onClick={onClose} className="text-muted hover:text-gray-200">✕</button>
+          <button onClick={onClose} className="text-muted hover:text-fg">✕</button>
         </header>
 
         <div className="p-2 overflow-y-auto flex-1">
@@ -72,13 +72,13 @@ export function ForwardMessageModal({ message, onClose }: { message: Message; on
           })}
         </div>
 
-        {error && <p className="text-xs text-red-400 px-4 pb-2">{error}</p>}
+        {error && <p className="text-xs text-danger px-4 pb-2">{error}</p>}
 
         <footer className="p-3 border-t border-surface">
           <button
             disabled={busy || selected.length === 0}
             onClick={forward}
-            className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed text-ink font-medium rounded-lg py-2 text-sm transition"
+            className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed text-accent-fg font-medium rounded-lg py-2 text-sm transition"
           >
             {busy ? "Forwarding…" : `Forward${selected.length > 0 ? ` (${selected.length})` : ""}`}
           </button>

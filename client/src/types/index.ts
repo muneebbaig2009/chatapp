@@ -7,6 +7,9 @@ export interface User {
   about?: string;
   isOnline?: boolean;
   lastSeen?: string;
+  showLastSeen?: boolean;
+  showOnlineStatus?: boolean;
+  showReadReceipts?: boolean;
 }
 
 export interface Reaction {

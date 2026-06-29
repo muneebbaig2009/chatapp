@@ -35,10 +35,8 @@ export function AuthPage() {
     <div className="min-h-full flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="inline-flex w-14 h-14 rounded-2xl bg-accent items-center justify-center text-ink text-2xl font-bold mb-3">
-            ◗
-          </div>
-          <h1 className="text-2xl font-semibold">ChatApp</h1>
+          <img src="/logo.png" alt="HAMNAVA" className="inline-flex w-14 h-14 rounded-2xl mb-3 object-contain" />
+          <h1 className="text-2xl font-semibold">HAMNAVA</h1>
           <p className="text-muted text-sm mt-1">
             {mode === "login" ? "Welcome back" : "Create your account"}
           </p>
@@ -64,12 +62,12 @@ export function AuthPage() {
             Keep me signed in
           </label>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
 
           <button
             onClick={submit}
             disabled={loading}
-            className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 text-ink font-semibold rounded-lg py-2.5 transition"
+            className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 text-accent-fg font-semibold rounded-lg py-2.5 transition"
           >
             {loading ? "Please wait…" : mode === "login" ? "Log in" : "Sign up"}
           </button>

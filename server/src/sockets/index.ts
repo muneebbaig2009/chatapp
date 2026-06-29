@@ -120,8 +120,11 @@ export function initSockets(httpServer: HttpServer) {
     // Mark online
     if (!online.has(userId)) online.set(userId, new Set());
     online.get(userId)!.add(socket.id);
-    await prisma.user.update({ where: { id: userId }, data: { isOnline: true } });
-    socket.broadcast.emit("presence:update", { userId, isOnline: true });
+    const selfUser = await prisma.user.update({ where: { id: userId }, data: { isOnline: true } });
+    // The "online" Map above tracks real connection state for internal use
+    // (push fallback, call routing) regardless of this setting — only the
+    // outward-facing broadcast respects showOnlineStatus.
+    socket.broadcast.emit("presence:update", { userId, isOnline: selfUser.showOnlineStatus ? true : false });
     socket.join(`user:${userId}`);
 
     // Join a room per chat so we can target events
@@ -167,6 +170,11 @@ export function initSockets(httpServer: HttpServer) {
         create: { messageId, userId, status: "READ" },
         update: { status: "READ" },
       });
+      // Recorded either way (so flipping the setting back on later is
+      // accurate), but if this reader has read receipts disabled, don't
+      // let anyone else find out they read it.
+      const reader = await prisma.user.findUnique({ where: { id: userId }, select: { showReadReceipts: true } });
+      if (!reader?.showReadReceipts) return;
       // Notify all members in their personal rooms so the sender sees the tick
       // flip even if they don't have the chat open.
       const members = await chatService.memberIds(chatId);

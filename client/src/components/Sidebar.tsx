@@ -9,7 +9,9 @@ import { Avatar } from "./Avatar";
 import { CreateGroupModal } from "./CreateGroupModal";
 import { CallHistoryList } from "./CallHistoryList";
 import { StatusList } from "./StatusList";
+import { SettingsModal } from "./SettingsModal";
 import { getPushSubscriptionStatus, enablePushNotifications, disablePushNotifications } from "../utils/push";
+import { useTheme } from "../utils/theme";
 import type { Chat, CallLogEntry, StatusFeed, User } from "../types";
 
 export function Sidebar() {
@@ -26,6 +28,8 @@ export function Sidebar() {
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   const missedCount = callLog.filter((c) => c.direction === "incoming" && c.status === "MISSED").length;
   const hasUnseenStatus = statusOthers.some((g) => g.hasUnseen);
@@ -99,10 +103,14 @@ export function Sidebar() {
   return (
     <aside className="w-full sm:w-80 border-r border-surface bg-panel flex flex-col h-full">
       <header className="flex items-center justify-between px-4 py-3 border-b border-surface">
-        <div className="flex items-center gap-2">
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="flex items-center gap-2 hover:bg-surface rounded-lg -ml-1 pl-1 pr-2 py-1 transition"
+          title="Settings"
+        >
           <Avatar name={me?.displayName ?? "?"} src={me?.avatarUrl} size={36} />
           <span className="font-semibold text-sm">{me?.displayName}</span>
-        </div>
+        </button>
         <div className="flex items-center gap-1">
           {activeTab === "chats" && (
             <div className="relative">
@@ -135,6 +143,13 @@ export function Sidebar() {
             </div>
           )}
           <button
+            onClick={toggleTheme}
+            className="w-9 h-9 rounded-lg hover:bg-surface flex items-center justify-center text-sm"
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? "🌙" : "☀️"}
+          </button>
+          <button
             onClick={togglePush}
             disabled={pushBusy}
             className="w-9 h-9 rounded-lg hover:bg-surface flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -159,7 +174,7 @@ export function Sidebar() {
         <button
           onClick={() => setActiveTab("chats")}
           className={`flex-1 py-2.5 text-sm font-medium transition ${
-            activeTab === "chats" ? "text-accent border-b-2 border-accent" : "text-muted hover:text-gray-200"
+            activeTab === "chats" ? "text-accent border-b-2 border-accent" : "text-muted hover:text-fg"
           }`}
         >
           Chats
@@ -167,12 +182,12 @@ export function Sidebar() {
         <button
           onClick={() => setActiveTab("calls")}
           className={`flex-1 py-2.5 text-sm font-medium transition relative ${
-            activeTab === "calls" ? "text-accent border-b-2 border-accent" : "text-muted hover:text-gray-200"
+            activeTab === "calls" ? "text-accent border-b-2 border-accent" : "text-muted hover:text-fg"
           }`}
         >
           Calls
           {missedCount > 0 && (
-            <span className="absolute top-1.5 right-1/4 translate-x-1/2 bg-red-500 text-white text-[10px] leading-none rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+            <span className="absolute top-1.5 right-1/4 translate-x-1/2 bg-danger text-white text-[10px] leading-none rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
               {missedCount}
             </span>
           )}
@@ -180,7 +195,7 @@ export function Sidebar() {
         <button
           onClick={() => setActiveTab("status")}
           className={`flex-1 py-2.5 text-sm font-medium transition relative ${
-            activeTab === "status" ? "text-accent border-b-2 border-accent" : "text-muted hover:text-gray-200"
+            activeTab === "status" ? "text-accent border-b-2 border-accent" : "text-muted hover:text-fg"
           }`}
         >
           Status
@@ -266,6 +281,7 @@ export function Sidebar() {
       </div>
 
       {groupModalOpen && <CreateGroupModal onClose={() => setGroupModalOpen(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </aside>
   );
 }

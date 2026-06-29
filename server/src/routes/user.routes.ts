@@ -4,4 +4,5 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 router.get("/me", requireAuth, ctrl.me);
+router.patch("/me", requireAuth, ctrl.updateMe);
 export default router;

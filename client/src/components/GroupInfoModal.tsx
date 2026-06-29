@@ -114,7 +114,7 @@ export function GroupInfoModal({ chat, onClose }: { chat: Chat; onClose: () => v
       >
         <header className="px-4 py-3 border-b border-surface flex items-center justify-between">
           <h2 className="font-semibold text-sm">Group info</h2>
-          <button onClick={onClose} className="text-muted hover:text-gray-200">✕</button>
+          <button onClick={onClose} className="text-muted hover:text-fg">✕</button>
         </header>
 
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
@@ -144,7 +144,7 @@ export function GroupInfoModal({ chat, onClose }: { chat: Chat; onClose: () => v
                   {isAdmin && (
                     <button
                       onClick={() => { setNameDraft(chat.name ?? ""); setEditingName(true); }}
-                      className="text-muted hover:text-gray-200 text-xs"
+                      className="text-muted hover:text-fg text-xs"
                       title="Edit name"
                     >
                       ✎
@@ -158,7 +158,7 @@ export function GroupInfoModal({ chat, onClose }: { chat: Chat; onClose: () => v
             </div>
           </div>
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-danger">{error}</p>}
 
           {isAdmin && (
             <div className="space-y-2">
@@ -192,7 +192,7 @@ export function GroupInfoModal({ chat, onClose }: { chat: Chat; onClose: () => v
                   </div>
                   <button
                     onClick={() => { setAdding(false); setQuery(""); setResults([]); }}
-                    className="text-xs text-muted hover:text-gray-200"
+                    className="text-xs text-muted hover:text-fg"
                   >
                     Cancel
                   </button>
@@ -225,14 +225,14 @@ export function GroupInfoModal({ chat, onClose }: { chat: Chat; onClose: () => v
                       <button
                         disabled={busy}
                         onClick={() => toggleAdmin(m.userId, !m.isAdmin)}
-                        className="text-xs text-muted hover:text-gray-200"
+                        className="text-xs text-muted hover:text-fg"
                       >
                         {m.isAdmin ? "Demote" : "Promote"}
                       </button>
                       <button
                         disabled={busy}
                         onClick={() => removeMember(m.userId)}
-                        className="text-xs text-red-400 hover:text-red-300"
+                        className="text-xs text-danger hover:text-danger-dim"
                       >
                         Remove
                       </button>
@@ -248,7 +248,7 @@ export function GroupInfoModal({ chat, onClose }: { chat: Chat; onClose: () => v
           <button
             disabled={busy}
             onClick={leaveGroup}
-            className="w-full text-red-400 hover:text-red-300 font-medium rounded-lg py-2 text-sm transition"
+            className="w-full text-danger hover:text-danger-dim font-medium rounded-lg py-2 text-sm transition"
           >
             Leave group
           </button>

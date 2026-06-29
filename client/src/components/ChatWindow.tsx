@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { uploadToCloudinary } from "../api/cloudinary";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { setMessages, updateMessage, removeMessageLocal, upsertChat } from "../store/slices/chatSlice";
+import { setMessages, setActiveChat, updateMessage, removeMessageLocal, upsertChat } from "../store/slices/chatSlice";
 import { useSocketRef } from "../hooks/SocketContext";
 import { useCall } from "../hooks/CallContext";
 import { MessageBubble } from "./MessageBubble";
@@ -327,6 +327,13 @@ export function ChatWindow() {
       )}
 
       <header className="flex items-center gap-3 px-4 py-3 border-b border-surface bg-panel">
+        <button
+          onClick={() => dispatch(setActiveChat(null))}
+          className="sm:hidden w-9 h-9 -ml-1 rounded-lg hover:bg-surface flex items-center justify-center text-xl shrink-0"
+          title="Back to chats"
+        >
+          ←
+        </button>
         <div
           className={`flex items-center gap-3 flex-1 min-w-0 ${
             chat.isGroup ? "cursor-pointer hover:bg-surface/40 rounded-lg -mx-1 px-1" : ""
@@ -384,7 +391,7 @@ export function ChatWindow() {
           {(!chat.isGroup || isAdmin) && (
             <button
               onClick={() => togglePin(chat.pinnedMessage!)}
-              className="text-muted hover:text-gray-200 text-xs shrink-0"
+              className="text-muted hover:text-fg text-xs shrink-0"
               title="Unpin"
             >
               ✕
@@ -434,7 +441,7 @@ export function ChatWindow() {
         {editingMessage && (
           <div className="flex items-center gap-2 px-2 pb-2 text-xs text-muted">
             <span className="flex-1">✏️ Editing message</span>
-            <button onClick={cancelEdit} className="hover:text-gray-200">✕ Cancel</button>
+            <button onClick={cancelEdit} className="hover:text-fg">✕ Cancel</button>
           </div>
         )}
         <input
@@ -451,15 +458,15 @@ export function ChatWindow() {
             <button
               type="button"
               onClick={cancelRecording}
-              className="text-muted hover:text-gray-200 transition"
+              className="text-muted hover:text-fg transition"
               title="Cancel recording"
             >🗑</button>
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-            <span className="text-sm text-gray-200 flex-1">{formatTime(recordSeconds)}</span>
+            <span className="w-2 h-2 rounded-full bg-danger animate-pulse shrink-0" />
+            <span className="text-sm text-fg flex-1">{formatTime(recordSeconds)}</span>
             <button
               type="button"
               onClick={stopRecording}
-              className="w-9 h-9 shrink-0 rounded-full bg-accent hover:bg-accent-dim text-ink flex items-center justify-center transition"
+              className="w-9 h-9 shrink-0 rounded-full bg-accent hover:bg-accent-dim text-accent-fg flex items-center justify-center transition"
               title="Stop and send"
             >⏹</button>
           </div>
@@ -492,7 +499,7 @@ export function ChatWindow() {
             >🎤</button>
             <button
               onClick={handleSubmit}
-              className="w-11 h-11 shrink-0 rounded-full bg-accent hover:bg-accent-dim text-ink flex items-center justify-center text-lg transition"
+              className="w-11 h-11 shrink-0 rounded-full bg-accent hover:bg-accent-dim text-accent-fg flex items-center justify-center text-lg transition"
             >{editingMessage ? "✓" : "➤"}</button>
           </div>
         )}
@@ -504,7 +511,7 @@ export function ChatWindow() {
 function PendingBubble({ item }: { item: PendingUpload }) {
   return (
     <div className="flex justify-end px-4">
-      <div className="max-w-[75%] rounded-2xl px-3.5 py-2 text-sm shadow bg-accent text-ink rounded-br-md opacity-70">
+      <div className="max-w-[75%] rounded-2xl px-3.5 py-2 text-sm shadow bg-accent text-accent-fg rounded-br-md opacity-70">
         {item.previewUrl && item.type === "IMAGE" && (
           <img src={item.previewUrl} className="block max-w-[200px] max-h-56 rounded-lg mb-1" />
         )}
@@ -512,7 +519,7 @@ function PendingBubble({ item }: { item: PendingUpload }) {
           <video src={item.previewUrl} className="block max-w-[200px] rounded-lg mb-1" />
         )}
         <div className="flex items-center gap-2 text-xs">
-          {!item.error && <span className="w-3 h-3 border-2 border-ink/40 border-t-ink rounded-full animate-spin shrink-0" />}
+          {!item.error && <span className="w-3 h-3 border-2 border-accent-fg/40 border-t-accent-fg rounded-full animate-spin shrink-0" />}
           <span className="truncate max-w-[180px]">
             {item.error ? "Upload failed" : `Uploading ${item.fileName}…`}
           </span>

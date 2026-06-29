@@ -38,7 +38,7 @@ export function Avatar({ name, src, size = 40, online, isGroup }: Props) {
       {online !== undefined && (
         <span
           className={`absolute bottom-0 right-0 block rounded-full ring-2 ring-panel ${
-            online ? "bg-accent" : "bg-gray-500"
+            online ? "bg-accent" : "bg-muted"
           }`}
           style={{ width: size * 0.28, height: size * 0.28 }}
         />

@@ -42,7 +42,7 @@ export function StatusList() {
               e.stopPropagation();
               setCreating(true);
             }}
-            className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-accent text-ink flex items-center justify-center text-xs font-bold ring-2 ring-panel"
+            className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-accent text-accent-fg flex items-center justify-center text-xs font-bold ring-2 ring-panel"
             title="Add status"
           >
             +

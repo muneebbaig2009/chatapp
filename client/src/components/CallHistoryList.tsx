@@ -15,7 +15,7 @@ function formatDuration(seconds: number) {
 function statusLabel(entry: CallLogEntry): { text: string; className: string } {
   if (entry.status === "MISSED") {
     return entry.direction === "incoming"
-      ? { text: "Missed call", className: "text-red-400" }
+      ? { text: "Missed call", className: "text-danger" }
       : { text: "No answer", className: "text-muted" };
   }
   if (entry.status === "REJECTED") {
@@ -55,7 +55,7 @@ export function CallHistoryList() {
           >
             <Avatar name={entry.otherUser.displayName} src={entry.otherUser.avatarUrl} size={44} />
             <div className="min-w-0 flex-1">
-              <div className={`font-medium text-sm truncate ${isMissed ? "text-red-400" : ""}`}>
+              <div className={`font-medium text-sm truncate ${isMissed ? "text-danger" : ""}`}>
                 {entry.otherUser.displayName}
               </div>
               <div className={`text-xs truncate flex items-center gap-1 ${className}`}>

@@ -59,22 +59,22 @@ export function StatusViewer({
   if (!current) return null;
 
   return (
-    <div className="fixed inset-0 z-30 bg-black flex flex-col">
+    <div className="fixed inset-0 z-30 bg-ink flex flex-col">
       <div className="flex gap-1 px-3 pt-3">
         {group.statuses.map((s, i) => (
-          <div key={s.id} className="flex-1 h-1 rounded-full bg-white/30 overflow-hidden">
-            <div className="h-full bg-white" style={{ width: i <= index ? "100%" : "0%" }} />
+          <div key={s.id} className="flex-1 h-1 rounded-full bg-fg/30 overflow-hidden">
+            <div className="h-full bg-fg" style={{ width: i <= index ? "100%" : "0%" }} />
           </div>
         ))}
       </div>
 
-      <div className="flex items-center gap-2 px-3 py-2 text-white">
+      <div className="flex items-center gap-2 px-3 py-2 text-fg">
         <Avatar name={group.user.displayName} src={group.user.avatarUrl} size={32} />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate">{isOwn ? "My status" : group.user.displayName}</div>
-          <div className="text-xs text-white/60">{relativeTime(current.createdAt)}</div>
+          <div className="text-xs text-fg/60">{relativeTime(current.createdAt)}</div>
         </div>
-        <button onClick={close} className="text-white/80 hover:text-white text-xl px-2">✕</button>
+        <button onClick={close} className="text-fg/80 hover:text-fg text-xl px-2">✕</button>
       </div>
 
       <div
@@ -101,13 +101,13 @@ export function StatusViewer({
       </div>
 
       {current.caption && (
-        <div className="px-4 py-3 text-center text-white text-sm">{current.caption}</div>
+        <div className="px-4 py-3 text-center text-fg text-sm">{current.caption}</div>
       )}
 
       {isOwn && (
-        <div className="flex items-center justify-between px-4 py-3 text-white/80 text-xs">
+        <div className="flex items-center justify-between px-4 py-3 text-fg/80 text-xs">
           <span>👁 {current.viewCount} view{current.viewCount === 1 ? "" : "s"}</span>
-          <button onClick={handleDelete} className="text-red-400 hover:text-red-300">🗑 Delete</button>
+          <button onClick={handleDelete} className="text-danger hover:text-danger-dim">🗑 Delete</button>
         </div>
       )}
     </div>

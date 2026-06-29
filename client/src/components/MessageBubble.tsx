@@ -63,8 +63,8 @@ export function MessageBubble({
       <div
         className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm shadow ${
           mine
-            ? "bg-accent text-ink rounded-br-md"
-            : "bg-bubble text-gray-100 rounded-bl-md"
+            ? "bg-accent text-accent-fg rounded-br-md"
+            : "bg-bubble text-fg rounded-bl-md"
         }`}
       >
         {showSender && (
@@ -74,24 +74,24 @@ export function MessageBubble({
         )}
 
         {isPinned && (
-          <div className={`text-[11px] mb-1 flex items-center gap-1 ${mine ? "text-ink/60" : "text-muted"}`}>
+          <div className={`text-[11px] mb-1 flex items-center gap-1 ${mine ? "text-accent-fg/60" : "text-muted"}`}>
             📌 Pinned
           </div>
         )}
         {message.forwardedFromId && (
-          <div className={`text-[11px] mb-1 italic flex items-center gap-1 ${mine ? "text-ink/60" : "text-muted"}`}>
+          <div className={`text-[11px] mb-1 italic flex items-center gap-1 ${mine ? "text-accent-fg/60" : "text-muted"}`}>
             ↪ Forwarded
           </div>
         )}
 
         {message.isDeleted ? (
-          <span className={`italic text-sm ${mine ? "text-ink/60" : "text-muted"}`}>
+          <span className={`italic text-sm ${mine ? "text-accent-fg/60" : "text-muted"}`}>
             This message was deleted
           </span>
         ) : (
           <>
             {message.replyTo?.content && (
-              <div className={`text-xs mb-1 pl-2 border-l-2 ${mine ? "border-ink/40 text-ink/70" : "border-accent text-muted"}`}>
+              <div className={`text-xs mb-1 pl-2 border-l-2 ${mine ? "border-accent-fg/40 text-accent-fg/70" : "border-accent text-muted"}`}>
                 {message.replyTo.content}
               </div>
             )}
@@ -125,7 +125,7 @@ export function MessageBubble({
                 rel="noopener noreferrer"
                 download={message.fileName ?? undefined}
                 className={`flex items-center gap-2 mb-1 px-2 py-1.5 rounded-lg ${
-                  mine ? "bg-ink/10 hover:bg-ink/20" : "bg-ink/30 hover:bg-ink/40"
+                  mine ? "bg-black/10 hover:bg-black/20" : "bg-black/30 hover:bg-black/40"
                 }`}
               >
                 <span className="text-xl">📄</span>
@@ -139,12 +139,12 @@ export function MessageBubble({
           </>
         )}
 
-        <span className={`ml-2 align-bottom text-[10px] ${mine ? "text-ink/60" : "text-muted"}`}>
+        <span className={`ml-2 align-bottom text-[10px] ${mine ? "text-accent-fg/60" : "text-muted"}`}>
           {starred && <span className="mr-1">⭐</span>}
           {message.isEdited && !message.isDeleted && <span className="mr-1">edited</span>}
           {time}
           {mine && (
-            <span className={`ml-1 font-semibold ${readByOther ? "text-blue-700" : "text-ink/50"}`}>
+            <span className={`ml-1 font-semibold ${readByOther ? "text-blue-700" : "text-accent-fg/50"}`}>
               {readByOther ? "✓✓" : "✓"}
             </span>
           )}
@@ -217,7 +217,7 @@ function MessageMenu({
               </button>
             )}
             {onDeleteForEveryone && (
-              <button onClick={() => act(onDeleteForEveryone)} className="w-full text-left px-3 py-2 text-sm hover:bg-surface text-red-400">
+              <button onClick={() => act(onDeleteForEveryone)} className="w-full text-left px-3 py-2 text-sm hover:bg-surface text-danger">
                 🗑 Delete for everyone
               </button>
             )}

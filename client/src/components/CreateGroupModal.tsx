@@ -61,7 +61,7 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
       >
         <header className="px-4 py-3 border-b border-surface flex items-center justify-between">
           <h2 className="font-semibold text-sm">New group</h2>
-          <button onClick={onClose} className="text-muted hover:text-gray-200">✕</button>
+          <button onClick={onClose} className="text-muted hover:text-fg">✕</button>
         </header>
 
         <div className="p-4 space-y-3 overflow-y-auto flex-1">
@@ -82,7 +82,7 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
                 >
                   <Avatar name={u.displayName} src={u.avatarUrl} size={20} />
                   {u.displayName}
-                  <button onClick={() => toggleSelect(u)} className="text-muted hover:text-gray-200">✕</button>
+                  <button onClick={() => toggleSelect(u)} className="text-muted hover:text-fg">✕</button>
                 </span>
               ))}
             </div>
@@ -120,14 +120,14 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-danger">{error}</p>}
         </div>
 
         <footer className="p-3 border-t border-surface">
           <button
             disabled={busy || !name.trim() || selected.length === 0}
             onClick={create}
-            className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed text-ink font-medium rounded-lg py-2 text-sm transition"
+            className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed text-accent-fg font-medium rounded-lg py-2 text-sm transition"
           >
             {busy ? "Creating…" : "Create group"}
           </button>

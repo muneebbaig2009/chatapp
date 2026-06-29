@@ -46,7 +46,7 @@ export function CreateStatusModal({ onClose }: { onClose: () => void }) {
       >
         <header className="px-4 py-3 border-b border-surface flex items-center justify-between">
           <h2 className="font-semibold text-sm">New status</h2>
-          <button onClick={onClose} className="text-muted hover:text-gray-200">✕</button>
+          <button onClick={onClose} className="text-muted hover:text-fg">✕</button>
         </header>
 
         <div className="p-4 space-y-3">
@@ -84,14 +84,14 @@ export function CreateStatusModal({ onClose }: { onClose: () => void }) {
             />
           )}
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-danger">{error}</p>}
         </div>
 
         <footer className="p-3 border-t border-surface">
           <button
             disabled={!file || busy}
             onClick={post}
-            className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed text-ink font-medium rounded-lg py-2 text-sm transition"
+            className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed text-accent-fg font-medium rounded-lg py-2 text-sm transition"
           >
             {busy ? "Posting…" : "Post status"}
           </button>
